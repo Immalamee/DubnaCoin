@@ -1,0 +1,180 @@
+/* Подключение шрифта Soledado */
+@font-face {
+    font-family: 'Soledago';
+    src: url('/static/fonts/soledago.woff2') format('woff2'),
+        url('/static/fonts/soledago.woff') format('woff'),
+        url('/static/fonts/soledago.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* Применение шрифта */
+body {
+    font-family: 'Soledago', sans-serif;
+    background-color: #f8f9fa;
+}
+
+/* Остальные стили */
+h1 {
+    font-weight: bold;
+}
+
+#coin-button {
+    transition: transform 0.1s;
+}
+body {
+    background-color: #f8f9fa;
+}
+
+h1 {
+    font-weight: bold;
+}
+
+#coin-button {
+    transition: transform 0.1s;
+}
+
+#coin-button:active {
+    transform: scale(0.95);
+}
+
+.coin-img {
+    width: 150px;
+    height: 150px;
+    transition: transform 0.2s;
+}
+
+.coin-img:hover {
+    transform: rotate(20deg) scale(1.05);
+}
+
+.card {
+    border: none;
+}
+
+.card-img-top {
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+}
+
+.btn {
+    border-radius: 1rem;
+}
+
+.modal-content {
+    border-radius: 1rem;
+}
+
+.list-group-item {
+    font-size: 18px;
+}
+
+.list-group-item:first-child {
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+}
+
+.list-group-item:last-child {
+    border-bottom-left-radius: 1rem;
+    border-bottom-right-radius: 1rem;
+}
+
+.flash {
+    animation: flash-animation 0.3s;
+}
+
+@keyframes flash-animation {
+    from { opacity: 1; }
+    50% { opacity: 0.5; }
+    to { opacity: 1; }
+}
+
+#referralModalBody .input-group {
+    max-width: 100%;
+}
+
+#referralModalBody .form-control {
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+}
+
+#referralModalBody .btn {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#copyToast {
+    opacity: 0.9;
+}
+
+/* Общие стили для скругленных краев */
+.rounded-3 {
+    border-radius: 1rem !important;
+}
+
+.rounded-4 {
+    border-radius: 1.5rem !important;
+}
+
+/* Стиль для кнопки "Нашли ошибку?" */
+#reportErrorButton {
+    background-color: #dc3545;
+    color: #fff;
+    border: none;
+}
+
+#reportErrorButton:hover {
+    background-color: #c82333;
+    color: #fff;
+}
+
+/* Стили для модального окна */
+.modal-content {
+    border: none;
+}
+
+.modal-header {
+    border-bottom: none;
+}
+
+.modal-body {
+    padding-top: 0;
+}
+
+.btn-close {
+    opacity: 0.5;
+}
+
+.btn-close:hover {
+    opacity: 1;
+}
+
+/* Стили для формы */
+#errorForm .form-control {
+    border-radius: 1rem;
+}
+
+#errorForm .btn {
+    border-radius: 1rem;
+}
+
+/* Плавные переходы для кнопок */
+.btn {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Эффект при наведении на кнопки */
+.btn:hover {
+    opacity: 0.9;
+}
+
+/* Анимация для кнопки "Нашли ошибку?" */
+#reportErrorButton {
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+#reportErrorButton:hover {
+    background-color: #c82333;
+    transform: scale(1.05);
+}
+

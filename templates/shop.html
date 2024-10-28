@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Магазин</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">🏪 Магазин</h1>
+        <p class="lead text-center">Ваши монеты: <span id="coins">{{ coins }}</span></p>
+        <div class="row">
+            <!-- Товар 1 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Увеличить уровень</h5>
+                        {% if level >= 10 %}
+                            <p class="card-text">Вы достигли максимального уровня.</p>
+                            <button class="btn btn-secondary" disabled>Максимальный уровень</button>
+                        {% else %}
+                            <p class="card-text">Стоимость: {{ level_cost }} монет</p>
+                            <button class="btn btn-primary" onclick="buy('level_up')">
+                                <i class="bi bi-graph-up"></i> Купить
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <!-- Товар 2 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Улучшить автокликер</h5>
+                        <p class="card-text">Стоимость: 2000 монет</p>
+                        <button class="btn btn-primary" onclick="buy('upgrade_autoclicker')">
+                            <i class="bi bi-cursor"></i> Купить
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Товар 3 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <img src="{{ url_for('static', filename='images/skin_1000.png') }}" class="card-img-top rounded-top-4" alt="Скин 1000">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Скин за 1000 монет</h5>
+                        <button class="btn btn-primary" onclick="buy('skin_1000')">
+                            <i class="bi bi-palette"></i> Купить
+                        </button>
+                    </div>
+                </div>
+            </div>
+             <!-- Товар 4 -->
+             <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <img src="{{ url_for('static', filename='images/skin_2000.png') }}" class="card-img-top rounded-top-4" alt="Скин 2000">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Скин за 2000 монет</h5>
+                        <button class="btn btn-primary" onclick="buy('skin_2000')">
+                            <i class="bi bi-palette-fill"></i> Купить
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Товар 5 -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <img src="{{ url_for('static', filename='images/skin_3000.png') }}" class="card-img-top rounded-top-4" alt="Скин 3000">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Скин за 3000 монет</h5>
+                        <button class="btn btn-primary" onclick="buy('skin_3000')">
+                            <i class="bi bi-palette-fill"></i> Купить
+                        </button>
+                    </div>
+                </div>
+            </div>
+             <!-- Товар 6 -->
+             <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <img src="{{ url_for('static', filename='images/skin_4000.png') }}" class="card-img-top rounded-top-4" alt="Скин 4000">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Скин за 4000 монет</h5>
+                        <button class="btn btn-primary" onclick="buy('skin_4000')">
+                            <i class="bi bi-palette-fill"></i> Купить
+                        </button>
+                    </div>
+                </div>
+            </div>
+             <!-- Товар 7 -->
+             <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-sm rounded-4">
+                    <img src="{{ url_for('static', filename='images/skin_5000.png') }}" class="card-img-top rounded-top-4" alt="Скин 5000">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Скин за 5000 монет</h5>
+                        <button class="btn btn-primary" onclick="buy('skin_5000')">
+                            <i class="bi bi-palette-fill"></i> Купить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-secondary" onclick="goBack()">
+                <i class="bi bi-arrow-left"></i> Назад
+            </button>
+        </div>
+    </div>
+
+    <button class="btn btn-outline-danger position-fixed bottom-0 start-0 m-3 rounded-circle shadow-lg" id="reportErrorButton" style="width: 60px; height: 60px;">
+        <i class="bi bi-bug-fill" style="font-size: 24px;"></i>
+    </button>
+
+    <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content rounded-4 shadow">
+            <div class="modal-header border-bottom-0">
+              <h5 class="modal-title" id="errorModalLabel">Сообщить об ошибке</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+              <form id="errorForm">
+                <div class="mb-3">
+                  <label for="errorMessage" class="form-label">Опишите проблему:</label>
+                  <textarea class="form-control rounded-3" id="errorMessage" rows="4" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-danger w-100 rounded-3">Отправить</button>
+              </form>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 shadow">
+          <div class="modal-header">
+            <h5 class="modal-title" id="infoModalLabel">Сообщение</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          </div>
+          <div class="modal-body" id="modalBody">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function buy(item) {
+            fetch('/buy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item: item })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showModal('Результат покупки', data.message);
+                if (data.coins !== undefined) {
+                    document.getElementById('coins').innerText = data.coins;
+                }
+                location.reload();
+            });
+        }
+
+
+        function goBack() {
+            window.location.href = '/';
+        }
+
+        function showModal(title, message) {
+            const modalTitle = document.getElementById('infoModalLabel');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = title;
+            modalBody.textContent = message;
+
+            const infoModal = new bootstrap.Modal(document.getElementById('infoModal'));
+            infoModal.show();
+        }
+    </script>
+</body>
+</html>
