@@ -1,0 +1,35 @@
+# Файлы Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения
+venv/
+env/
+ENV/
+
+# Файлы базы данных
+*.db
+database.db
+
+# Секретные файлы конфигурации
+*.env
+*.secret
+
+# Кэш pytest
+.pytest_cache/
+
+# Настройки IDE
+.vscode/
+
+# Файлы macOS
+.DS_Store
+
+# Логи
+logs/
+*.log
+
+# Пакеты Python
+*.egg-info/
+dist/
+build/
