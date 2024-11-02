@@ -9,7 +9,7 @@ import hashlib
 import json
 
 app = Flask(__name__)
-app.secret_key = '\xfd{H\xe5<\x95\xf9\xe3\x96.5\xd1\x01O<!\xd7\xa2\xa0\x9fR"\xa1\xa8'  # Замените на ваш секретный ключ
+app.secret_key = 'AM7qRPBG2dnEfM5GUNkO-pOrzzJYJXdkGReWlyv-Y3Q'  # Замените на ваш секретный ключ
 
 DATABASE = 'database.db'
 
