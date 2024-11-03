@@ -4,12 +4,19 @@ import threading
 import time
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask import session as login_session
+from dotenv import load_dotenv
+from telegram import Bot
 import hmac
 import hashlib
 import json
 
+load_dotenv()
 app = Flask(__name__)
-app.secret_key = 'AM7qRPBG2dnEfM5GUNkO-pOrzzJYJXdkGReWlyv-Y3Q'  # Замените на ваш секретный ключ
+app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')  # Замените на ваш секретный ключ
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+if not BOT_TOKEN:
+    raise ValueError("Необходимо установить переменную окружения BOT_TOKEN")
+bot = Bot(token=BOT_TOKEN)
 
 DATABASE = 'database.db'
 
@@ -20,13 +27,18 @@ def get_db_connection():
 
 def check_init_data(init_data):
     try:
-        parsed_data = dict([pair.split('=') for pair in init_data.split('&')])
-        hash_ = parsed_data.pop('hash')
-        data_check_string = '\n'.join(sorted([f"{k}={v}" for k, v in parsed_data.items()]))
-        secret_key = hashlib.sha256('7930944519:AAG5XNh3toqq_0PJnZlokQWYn2yiHzW2LTE'.encode()).digest()
+        # Парсинг init_data
+        data_check_arr = []
+        for item in init_data.split('&'):
+            key, value = item.split('=')
+            if key != 'hash':
+                data_check_arr.append(f'{key}={value}')
+        data_check_string = '\n'.join(sorted(data_check_arr))
+        secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
         hmac_string = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-        return hmac_string == hash_
+        return hmac_string == dict(item.split('=') for item in init_data.split('&'))['hash']
     except Exception as e:
+        print(f'Ошибка проверки init_data: {e}')
         return False
 
 # Главная страница мини-приложения
