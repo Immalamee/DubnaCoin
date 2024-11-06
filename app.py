@@ -21,9 +21,10 @@ bot = Bot(token=BOT_TOKEN)
 DATABASE = 'database.db'
 
 def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
+
 
 def check_init_data(init_data):
     try:
@@ -263,21 +264,25 @@ def report_error():
 # Функция автокликера
 def autoclicker():
     while True:
-        conn = get_db_connection()
-        users = conn.execute("SELECT User_id, Autoclicker, Level FROM Statistic WHERE Autoclicker > 0").fetchall()
-        for user in users:
-            user_id = user['User_id']
-            autoclicker_level = user['Autoclicker']
-            level = user['Level']
-            # Calculate coins per autoclick based on level
-            if level <= 1:
-                coins_reward = autoclicker_level * 1
-            else:
-                coins_reward = autoclicker_level * (2 ** (level - 1))
-            conn.execute("UPDATE Statistic SET Coins = Coins + ? WHERE User_id = ?", (coins_reward, user_id))
-        conn.commit()
-        conn.close()
+        try:
+            conn = get_db_connection()
+            users = conn.execute("SELECT User_id, Autoclicker, Level FROM Statistic WHERE Autoclicker > 0").fetchall()
+            for user in users:
+                user_id = user['User_id']
+                autoclicker_level = user['Autoclicker']
+                level = user['Level']
+                # Calculate coins per autoclick based on level
+                if level <= 1:
+                    coins_reward = autoclicker_level * 1
+                else:
+                    coins_reward = autoclicker_level * (2 ** (level - 1))
+                conn.execute("UPDATE Statistic SET Coins = Coins + ? WHERE User_id = ?", (coins_reward, user_id))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Ошибка в автокликере: {e}")
         time.sleep(10)  # Every 10 seconds
+
 
 # Запуск автокликера в отдельном потоке
 def start_autoclicker():
@@ -375,6 +380,7 @@ if __name__ == '__main__':
         ''')
         conn.commit()
         conn.close()
-
+    except Exception as e:
+        print(f"Ошибка при инициализации базы данных: {e}")
     start_autoclicker()
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
