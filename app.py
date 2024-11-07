@@ -383,4 +383,4 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Ошибка при инициализации базы данных: {e}")
     start_autoclicker()
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=8080)
