@@ -380,7 +380,11 @@ if __name__ == '__main__':
         ''')
         conn.commit()
         conn.close()
-    except Exception as e:
-        print(f"Ошибка при инициализации базы данных: {e}")
+    #except Exception as e:
+        #print(f"Ошибка при инициализации базы данных: {e}")
     start_autoclicker()
-    app.run(host='0.0.0.0', port=8080)
+    try:
+        print("Запуск приложения...")
+        app.run(host='0.0.0.0', port=8000, debug = True)
+    except Exception as e:
+        print(f"Ошибка при запуске приложения: {e}")
