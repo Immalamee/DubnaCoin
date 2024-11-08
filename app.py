@@ -24,7 +24,7 @@ updater = Updater(token=BOT_TOKEN)
 dispatcher = updater.dispatcher
 
 def start(update: Update, context: CallbackContext):
-    web_app_url = 'https://ваш_домен/'  # Замените на URL вашего веб-приложения
+    web_app_url = 'https://dubnacoin.ru/'  # Замените на URL вашего веб-приложения
 
     keyboard = [
         [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
