@@ -5,8 +5,9 @@ import time
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask import session as login_session
 from dotenv import load_dotenv
-from telegram import Bot, Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from telegram.ext import Application, CommandHandler, ContextTypes
+import asyncio
 import hmac
 import hashlib
 import json
@@ -17,30 +18,25 @@ app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')  # Заме�
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("Необходимо установить переменную окружения BOT_TOKEN")
-bot = Bot(token=BOT_TOKEN)
 
-# Инициализация Updater и Dispatcher для обработки команд бота
-updater = Updater(token=BOT_TOKEN)
-dispatcher = updater.dispatcher
+# Создание экземпляра приложения
+application = Application.builder().token(BOT_TOKEN).build()
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     web_app_url = 'https://dubnacoin.ru/'  # Замените на URL вашего веб-приложения
-
     keyboard = [
         [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    update.message.reply_text('Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.', reply_markup=reply_markup)
+    await update.message.reply_text('Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.', reply_markup=reply_markup)
 
 # Регистрация обработчика команды /start
 start_handler = CommandHandler('start', start)
-dispatcher.add_handler(start_handler)
+application.add_handler(start_handler)
 
-# Запуск бота в отдельном потоке
+# Запуск бота в отдельном асинхронном потоке
 def run_bot():
-    updater.start_polling()
-    updater.idle()
+    asyncio.run(application.run_polling())
 
 bot_thread = threading.Thread(target=run_bot)
 bot_thread.start()
@@ -76,43 +72,46 @@ def index():
     referrer_id = request.args.get('ref')  # Получаем ID пригласившего пользователя
 
     if init_data and check_init_data(init_data):
-        parsed_data = dict([pair.split('=') for pair in init_data.split('&')])
-        user_data = json.loads(parsed_data.get('user', '{}'))
-        user_id = user_data.get('id')
-        username = user_data.get('username', '')
-        name = user_data.get('first_name', '') + ' ' + user_data.get('last_name', '')
-
-        login_session['user_id'] = user_id
-
-        conn = get_db_connection()
-        user = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
-        if user is None:
-            conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
-            conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
-            conn.commit()
-            coins = 0
-            current_skin = 'default.png'
-        else:
-            coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
-            current_skin = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()['Current_skin']
-            if not current_skin:
-                current_skin = 'default.png'
-
-        # Обработка реферальной ссылки
-        if referrer_id and referrer_id != str(user_id):
-            existing_friend = conn.execute('''
-                SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
-            ''', (referrer_id, user_id)).fetchone()
-
-            if not existing_friend:
-                conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
-                conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
+        try:
+            parsed_data = dict([pair.split('=') for pair in init_data.split('&') if '=' in pair])
+            user_data_json = parsed_data.get('user', '{}')
+            user_data = json.loads(user_data_json)
+            user_id = user_data.get('id')
+            username = user_data.get('username', '')
+            first_name = user_data.get('first_name', '')
+            last_name = user_data.get('last_name', '')
+            name = f"{first_name} {last_name}".strip()
+            login_session['user_id'] = user_id
+            conn = get_db_connection()
+            user = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
+            if user is None:
+                conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
+                conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
                 conn.commit()
-
-        coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
-        level = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Level']
-        conn.close()
-        return render_template('index.html', coins=coins, level=level, current_skin=current_skin)
+                coins = 0
+                current_skin = 'default.png'
+            else:
+                coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
+                current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
+                current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
+                if not current_skin:
+                    current_skin = 'default.png'
+            # Обработка реферальной ссылки
+            if referrer_id and referrer_id != str(user_id):
+                existing_friend = conn.execute('''
+                    SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
+                ''', (referrer_id, user_id)).fetchone()
+                if not existing_friend:
+                    conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
+                    conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
+                    conn.commit()
+            coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
+            level = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Level']
+            conn.close()
+            return render_template('index.html', coins=coins, level=level, current_skin=current_skin)
+        except Exception as e:
+            print(f"Ошибка при обработке index: {e}")
+            return "Internal Server Error", 500
     else:
         return "Invalid init data", 403
 
@@ -298,7 +297,6 @@ def autoclicker():
                 user_id = user['User_id']
                 autoclicker_level = user['Autoclicker']
                 level = user['Level']
-                # Calculate coins per autoclick based on level
                 if level <= 1:
                     coins_reward = autoclicker_level * 1
                 else:
