@@ -36,7 +36,11 @@ application.add_handler(start_handler)
 
 # Запуск бота в отдельном асинхронном потоке
 def run_bot():
-    asyncio.run(application.run_polling())
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(application.run_polling())
+    loop.close()
 
 bot_thread = threading.Thread(target=run_bot)
 bot_thread.start()
