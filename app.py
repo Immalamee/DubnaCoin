@@ -5,7 +5,8 @@ import time
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask import session as login_session
 from dotenv import load_dotenv
-from telegram import Bot
+from telegram import Bot, Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from telegram.ext import Updater, CommandHandler, CallbackContext
 import hmac
 import hashlib
 import json
@@ -18,6 +19,32 @@ if not BOT_TOKEN:
     raise ValueError("Необходимо установить переменную окружения BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 
+# Инициализация Updater и Dispatcher для обработки команд бота
+updater = Updater(token=BOT_TOKEN)
+dispatcher = updater.dispatcher
+
+def start(update: Update, context: CallbackContext):
+    web_app_url = 'https://ваш_домен/'  # Замените на URL вашего веб-приложения
+
+    keyboard = [
+        [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    update.message.reply_text('Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.', reply_markup=reply_markup)
+
+# Регистрация обработчика команды /start
+start_handler = CommandHandler('start', start)
+dispatcher.add_handler(start_handler)
+
+# Запуск бота в отдельном потоке
+def run_bot():
+    updater.start_polling()
+    updater.idle()
+
+bot_thread = threading.Thread(target=run_bot)
+bot_thread.start()
+
 DATABASE = 'database.db'
 
 def get_db_connection():
@@ -28,16 +55,16 @@ def get_db_connection():
 
 def check_init_data(init_data):
     try:
-        # Парсинг init_data
-        data_check_arr = []
-        for item in init_data.split('&'):
-            key, value = item.split('=')
-            if key != 'hash':
-                data_check_arr.append(f'{key}={value}')
-        data_check_string = '\n'.join(sorted(data_check_arr))
-        secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
-        hmac_string = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-        return hmac_string == dict(item.split('=') for item in init_data.split('&'))['hash']
+        token = BOT_TOKEN
+        secret_key = hashlib.sha256(token.encode()).digest()
+
+        init_data_dict = dict([param.split('=') for param in init_data.split('&') if '=' in param])
+        hash_ = init_data_dict.pop('hash', None)
+        if not hash_:
+            return False
+        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(init_data_dict.items())])
+        hmac_string = hmac.new(secret_key, msg=data_check_string.encode(), digestmod=hashlib.sha256).hexdigest()
+        return hmac_string == hash_
     except Exception as e:
         print(f'Ошибка проверки init_data: {e}')
         return False
