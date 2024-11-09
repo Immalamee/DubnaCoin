@@ -5,45 +5,13 @@ import time
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask import session as login_session
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from telegram.ext import Application, CommandHandler, ContextTypes
-import asyncio
 import hmac
 import hashlib
 import json
 
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')  # Замените на ваш секретный ключ
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
-if not BOT_TOKEN:
-    raise ValueError("Необходимо установить переменную окружения BOT_TOKEN")
-
-# Создание экземпляра приложения
-application = Application.builder().token(BOT_TOKEN).build()
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    web_app_url = 'https://dubnacoin.ru/'  # Замените на URL вашего веб-приложения
-    keyboard = [
-        [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.', reply_markup=reply_markup)
-
-# Регистрация обработчика команды /start
-start_handler = CommandHandler('start', start)
-application.add_handler(start_handler)
-
-# Запуск бота в отдельном асинхронном потоке
-def run_bot():
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(application.run_polling())
-    loop.close()
-
-bot_thread = threading.Thread(target=run_bot)
-bot_thread.start()
+app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')
 
 DATABASE = 'database.db'
 
@@ -52,10 +20,9 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-
 def check_init_data(init_data):
     try:
-        token = BOT_TOKEN
+        token = os.environ.get('BOT_TOKEN')
         secret_key = hashlib.sha256(token.encode()).digest()
 
         init_data_dict = dict([param.split('=') for param in init_data.split('&') if '=' in param])
@@ -412,8 +379,5 @@ if __name__ == '__main__':
     #except Exception as e:
         #print(f"Ошибка при инициализации базы данных: {e}")
     start_autoclicker()
-    try:
-        print("Запуск приложения...")
-        app.run(host='0.0.0.0', port=5000, debug = True)
-    except Exception as e:
-        print(f"Ошибка при запуске приложения: {e}")
+    print("Запуск Flask-приложения...")
+    app.run(host='0.0.0.0', port=8000)
