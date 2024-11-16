@@ -114,17 +114,17 @@ def click():
         return jsonify({'error': 'User not authenticated'}), 403
 
     conn = get_db_connection()
-    # Fetch user's current level
+    # Получаем текущий уровень пользователя
     user_stat = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
     level = user_stat['Level']
     
-    # Determine the coin reward based on level
+    # Определяем количество монет за клик на основе уровня
     if level <= 1:
         coins_reward = 1
     else:
-        coins_reward = 2 ** (level - 1)  # Level 2: 2^1=2, Level 3: 2^2=4, etc.
+        coins_reward = 2 ** (level - 1)  # Уровень 2: 2^1=2, Уровень 3: 2^2=4 и т.д.
 
-    # Update the coins and clicks
+    # Обновляем количество монет и кликов
     conn.execute("UPDATE Statistic SET Coins = Coins + ?, Clicks = Clicks + 1 WHERE User_id = ?", (coins_reward, user_id))
     conn.commit()
     coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
@@ -151,7 +151,7 @@ def buy():
         if level >= 10:
             message = 'Вы достигли максимального уровня.'
         elif coins >= level_cost:
-            # Deduct coins and increase level
+            # Списываем монеты и повышаем уровень
             conn.execute("UPDATE Statistic SET Coins = Coins - ?, Level = Level + 1, Level_Cost = Level_Cost + 1000 WHERE User_id = ?", (level_cost, user_id))
             conn.commit()
             message = f'Уровень увеличен до {level + 1}!'
@@ -167,55 +167,20 @@ def buy():
         else:
             message = 'Недостаточно монет для улучшения автокликера.'
 
-    elif item == 'skin_1000':
-        cost = 1000
-        if coins >= cost:
-            conn.execute("UPDATE Statistic SET Coins = Coins - ? WHERE User_id = ?", (cost, user_id))
-            conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", ('skin_1000.png', user_id))
-            conn.commit()
-            message = 'Скин за 1000 куплен!'
-        else:
-            message = 'Недостаточно монет для покупки скина.'
+    # Обработка покупки скинов
+    elif item.startswith('skin_'):
+        try:
+            cost = int(item.split('_')[1])
+            if coins >= cost:
+                conn.execute("UPDATE Statistic SET Coins = Coins - ? WHERE User_id = ?", (cost, user_id))
+                conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", (f'{item}.png', user_id))
+                conn.commit()
+                message = f'Скин за {cost} куплен!'
+            else:
+                message = 'Недостаточно монет для покупки скина.'
+        except ValueError:
+            message = 'Некорректный товар.'
 
-    elif item == 'skin_2000':
-        cost = 2000
-        if coins >= cost:
-            conn.execute("UPDATE Statistic SET Coins = Coins - ? WHERE User_id = ?", (cost, user_id))
-            conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", ('skin_2000.png', user_id))
-            conn.commit()
-            message = 'Скин за 2000 куплен!'
-        else:
-            message = 'Недостаточно монет для покупки скина.'
-
-    elif item == 'skin_3000':
-        cost = 3000
-        if coins >= cost:
-            conn.execute("UPDATE Statistic SET Coins = Coins - ? WHERE User_id = ?", (cost, user_id))
-            conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", ('skin_3000.png', user_id))
-            conn.commit()
-            message = 'Скин за 3000 куплен!'
-        else:
-            message = 'Недостаточно монет для покупки скина.'
-
-    elif item == 'skin_4000':
-        cost = 4000
-        if coins >= cost:
-            conn.execute("UPDATE Statistic SET Coins = Coins - ? WHERE User_id = ?", (cost, user_id))
-            conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", ('skin_4000.png', user_id))
-            conn.commit()
-            message = 'Скин за 4000 куплен!'
-        else:
-            message = 'Недостаточно монет для покупки скина.'
-
-    elif item == 'skin_5000':
-        cost = 5000
-        if coins >= cost:
-            conn.execute("UPDATE Statistic SET Coins = Coins - ? WHERE User_id = ?", (cost, user_id))
-            conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", ('skin_5000.png', user_id))
-            conn.commit()
-            message = 'Скин за 5000 куплен!'
-        else:
-            message = 'Недостаточно монет для покупки скина.'
     else:
         message = 'Неизвестный товар.'
 
@@ -277,8 +242,7 @@ def autoclicker():
             conn.close()
         except Exception as e:
             print(f"Ошибка в автокликере: {e}")
-        time.sleep(10)  # Every 10 seconds
-
+        time.sleep(10)  # Каждые 10 секунд
 
 # Запуск автокликера в отдельном потоке
 def start_autoclicker():
@@ -286,98 +250,7 @@ def start_autoclicker():
     thread.daemon = True
     thread.start()
 
-if __name__ == '__main__':
-    # Проверяем, существует ли база данных
-    if not os.path.exists(DATABASE):
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Users (
-                ID INTEGER PRIMARY KEY,
-                Username VARCHAR,
-                Name VARCHAR,
-                Email VARCHAR,
-                Password VARCHAR,
-                Current_skin VARCHAR DEFAULT 'default.png'
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS User_Roles (
-                ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                User_id INTEGER,
-                Role_id INTEGER,
-                FOREIGN KEY (User_id) REFERENCES Users(ID),
-                FOREIGN KEY (Role_id) REFERENCES Roles(ID)
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Roles (
-                ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                Role_name VARCHAR
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Statistic (
-                Statistic_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        User_id INTEGER,
-        Clicks INTEGER DEFAULT 0,
-        Coins INTEGER DEFAULT 0,
-        Autoclicker INTEGER DEFAULT 0,
-        Level INTEGER DEFAULT 1,
-        Level_Cost INTEGER DEFAULT 1000,
-        FOREIGN KEY (User_id) REFERENCES Users(ID)
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Improvements (
-                Improvement_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Improvement_name VARCHAR,
-                Cost INTEGER,
-                Effect VARCHAR,
-                User_id INTEGER,
-                FOREIGN KEY (User_id) REFERENCES Users(ID)
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Skins (
-                Skin_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Skin_name VARCHAR,
-                Price INTEGER,
-                User_id INTEGER,
-                FOREIGN KEY (User_id) REFERENCES Users(ID)
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Errors (
-                Error_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                User_id INTEGER,
-                Error_message VARCHAR,
-                FOREIGN KEY (User_id) REFERENCES Users(ID)
-            )
-        ''')
-        # Добавляем таблицу для друзей
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Friends (
-                ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                User_id INTEGER,
-                Friend_id INTEGER,
-                FOREIGN KEY (User_id) REFERENCES Users(ID),
-                FOREIGN KEY (Friend_id) REFERENCES Users(ID)
-            )
-        ''')
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Errors (
-                Error_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                User_id INTEGER,
-                Error_message TEXT,
-                Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (User_id) REFERENCES Users(ID)
-            )
-        ''')
-        conn.commit()
-        conn.close()
-    #except Exception as e:
-        #print(f"Ошибка при инициализации базы данных: {e}")
-    start_autoclicker()
-    print("Запуск Flask-приложения...")
-    app.run(host='0.0.0.0', port=8000)
+# Перемещаем вызов start_autoclicker() за пределы блока if __name__ == '__main__'
+start_autoclicker()
+
+# Ваше приложение Flask готово к импорту Gunicorn
