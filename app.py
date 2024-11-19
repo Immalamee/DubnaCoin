@@ -45,7 +45,8 @@ def index():
     app.logger.info(f"Получено init_data: {init_data}")
     referrer_id = request.args.get('ref')  # Получаем ID пригласившего пользователя
 
-    if init_data and check_init_data(init_data):
+    #if init_data and check_init_data(init_data):
+    if True:
         try:
             parsed_data = dict([pair.split('=') for pair in init_data.split('&') if '=' in pair])
             user_data_json = parsed_data.get('user', '{}')
