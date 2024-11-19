@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import logging
 import threading
 import time
 from flask import Flask, render_template, request, jsonify, redirect, url_for
@@ -12,6 +13,7 @@ import json
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')
+app.logger.setLevel(logging.INFO)
 
 DATABASE = 'database.db'
 
@@ -40,7 +42,7 @@ def check_init_data(init_data):
 @app.route('/')
 def index():
     init_data = request.args.get('tgWebAppData')
-    print(f"Получено init_data: {init_data}")
+    app.logger.info(f"Получено init_data: {init_data}")
     referrer_id = request.args.get('ref')  # Получаем ID пригласившего пользователя
 
     if init_data and check_init_data(init_data):
