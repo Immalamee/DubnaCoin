@@ -50,55 +50,53 @@ def index():
     app.logger.info(f"Получено init_data: {init_data}")
     referrer_id = request.args.get('ref')  # Получаем ID пригласившего пользователя
 
-    #if init_data and check_init_data(init_data):
-    if True:
+    if init_data and check_init_data(init_data):
         try:
-            if init_data:
-                parsed_data = dict([pair.split('=') for pair in init_data.split('&') if '=' in pair])
-                user_data_json = parsed_data.get('user', '{}')
-                user_data = json.loads(user_data_json)
-                user_id = user_data.get('id')
-                username = user_data.get('username', '')
-                first_name = user_data.get('first_name', '')
-                last_name = user_data.get('last_name', '')
-                name = f"{first_name} {last_name}".strip()
-                login_session['user_id'] = user_id
-                conn = get_db_connection()
-                user = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
-                if not user_id:
-                    return "User ID not found in init data", 400
-                if user is None:
-                    conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
-                    conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
-                    conn.commit()
-                    coins = 0
-                    current_skin = 'default.png'
-                else:
-                    coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
-                    current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
-                    current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
-                    if not current_skin:
-                        current_skin = 'default.png'
-                # Обработка реферальной ссылки
-                if referrer_id and referrer_id != str(user_id):
-                    existing_friend = conn.execute('''
-                        SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
-                    ''', (referrer_id, user_id)).fetchone()
-                    if not existing_friend:
-                        conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
-                        conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
-                        conn.commit()
-                coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
-                level = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Level']
-                conn.close()
-                return render_template('index.html', coins=coins, level=level, current_skin=current_skin)
+            parsed_data = dict([pair.split('=') for pair in init_data.split('&') if '=' in pair])
+            user_data_json = parsed_data.get('user', '{}')
+            user_data = json.loads(user_data_json)
+            user_id = user_data.get('id')
+            username = user_data.get('username', '')
+            first_name = user_data.get('first_name', '')
+            last_name = user_data.get('last_name', '')
+            name = f"{first_name} {last_name}".strip()
+            login_session['user_id'] = user_id
+            conn = get_db_connection()
+            user = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
+            if user is None:
+                conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
+                conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
+                conn.commit()
+                coins = 0
+                current_skin = 'default.png'
             else:
-                return "No init data received", 400
+                coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
+                current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
+                current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
+                if not current_skin:
+                    current_skin = 'default.png'
+            # Обработка реферальной ссылки
+            if referrer_id and referrer_id != str(user_id):
+                existing_friend = conn.execute('''
+                    SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
+                ''', (referrer_id, user_id)).fetchone()
+                if not existing_friend:
+                    conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
+                    conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
+                    conn.commit()
+            coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
+            level = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Level']
+            conn.close()
+            return render_template('index.html', coins=coins, level=level, current_skin=current_skin)
+            #else:
+            #    return "No init data received", 400
         except Exception as e:
             print(f"Ошибка при обработке index: {e}")
             return "Internal Server Error", 500
+        pass
     else:
-        return "Invalid init data", 403
+        #return "Invalid init data", 403
+        return render_template('no_init_data.html')
 
 # Страница друзей
 @app.route('/friends')
