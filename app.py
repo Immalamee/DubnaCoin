@@ -24,19 +24,24 @@ def get_db_connection():
 
 def check_init_data(init_data):
     try:
+        if not init_data:
+            return False
         token = os.environ.get('BOT_TOKEN')
-        secret_key = hashlib.sha256(token.encode()).digest()
-
-        init_data_dict = dict([param.split('=') for param in init_data.split('&') if '=' in param])
-        hash_ = init_data_dict.pop('hash', None)
+        if not token:
+            app.logger.error('BOT_TOKEN is not set')
+            return False
+        secret_key = hashlib.sha256(token.encode('utf-8')).digest()
+        data = dict(parse_qsl(init_data, keep_blank_values=True))
+        hash_ = data.pop('hash', None)
         if not hash_:
             return False
-        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(init_data_dict.items())])
-        hmac_string = hmac.new(secret_key, msg=data_check_string.encode(), digestmod=hashlib.sha256).hexdigest()
+        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data.items())])
+        hmac_string = hmac.new(secret_key, msg=data_check_string.encode('utf-8'), digestmod=hashlib.sha256).hexdigest()
         return hmac_string == hash_
     except Exception as e:
-        print(f'Ошибка проверки init_data: {e}')
+        app.logger.error(f'Ошибка проверки init_data: {e}')
         return False
+
 
 # Главная страница мини-приложения
 @app.route('/')
