@@ -18,7 +18,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False,input_field_placeholder='Нажмите кнопку ниже, чтобы открыть приложение')
     await update.message.reply_text('Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.', reply_markup=reply_markup)
 
 # Регистрация обработчика команды /start
