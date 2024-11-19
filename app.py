@@ -40,6 +40,7 @@ def check_init_data(init_data):
 @app.route('/')
 def index():
     init_data = request.args.get('tgWebAppData')
+    print(f"Получено init_data: {init_data}")
     referrer_id = request.args.get('ref')  # Получаем ID пригласившего пользователя
 
     if init_data and check_init_data(init_data):
