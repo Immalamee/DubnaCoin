@@ -14,11 +14,11 @@ application = Application.builder().token(BOT_TOKEN).build()
 
 # Асинхронный обработчик команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    web_app_url = 'https://dubnacoin.ru/'  # Замените на URL вашего веб-приложения
+    web_app_url = 'https://dubnacoin.ru/' 
     keyboard = [
-        [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
+        [KeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text('Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.', reply_markup=reply_markup)
 
 # Регистрация обработчика команды /start
