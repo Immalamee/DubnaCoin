@@ -1,14 +1,14 @@
-import sqlite3
 import os
-import logging
+import sqlite3
 import threading
 import time
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-from flask import session as login_session
-from dotenv import load_dotenv
+import logging
 import hmac
 import hashlib
 import json
+from urllib.parse import parse_qsl
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
@@ -42,17 +42,21 @@ def check_init_data(init_data):
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False
 
-
-# Главная страница мини-приложения
 @app.route('/')
 def index():
-    init_data = request.args.get('tgWebAppData')
-    app.logger.info(f"Получено init_data: {init_data}")
-    referrer_id = request.args.get('ref')  # Получаем ID пригласившего пользователя
+    return render_template('index.html')
 
-    if init_data and check_init_data(init_data):
-        try:
-            parsed_data = dict([pair.split('=') for pair in init_data.split('&') if '=' in pair])
+@app.route('/process_init_data', methods=['POST'])
+def process_init_data():
+    try:
+        data = request.get_json()
+        init_data = data.get('initData')
+        referrer_id = data.get('referrer_id')  # Получаем ID пригласившего пользователя
+        app.logger.info(f"Получено init_data: {init_data}")
+        app.logger.info(f"Получен referrer_id: {referrer_id}")
+
+        if init_data and check_init_data(init_data):
+            parsed_data = dict(parse_qsl(init_data, keep_blank_values=True))
             user_data_json = parsed_data.get('user', '{}')
             user_data = json.loads(user_data_json)
             user_id = user_data.get('id')
@@ -60,21 +64,21 @@ def index():
             first_name = user_data.get('first_name', '')
             last_name = user_data.get('last_name', '')
             name = f"{first_name} {last_name}".strip()
-            login_session['user_id'] = user_id
+            session['user_id'] = user_id
+
             conn = get_db_connection()
             user = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
             if user is None:
                 conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
                 conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
                 conn.commit()
-                coins = 0
-                current_skin = 'default.png'
+                app.logger.info(f"Добавлен новый пользователь: {user_id} - {username}")
             else:
-                coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
                 current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
                 current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
                 if not current_skin:
                     current_skin = 'default.png'
+
             # Обработка реферальной ссылки
             if referrer_id and referrer_id != str(user_id):
                 existing_friend = conn.execute('''
@@ -84,57 +88,53 @@ def index():
                     conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
                     conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
                     conn.commit()
+                    app.logger.info(f"Реферал добавлен: {referrer_id} пригласил {user_id}")
+
+            # Получаем актуальные данные пользователя
             coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
             level = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Level']
+            current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
+            current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
+            if not current_skin:
+                current_skin = 'default.png'
             conn.close()
-            return render_template('index.html', coins=coins, level=level, current_skin=current_skin)
-            #else:
-            #    return "No init data received", 400
-        except Exception as e:
-            print(f"Ошибка при обработке index: {e}")
-            return "Internal Server Error", 500
-        pass
-    else:
-        #return "Invalid init data", 403
-        return render_template('no_init_data.html')
 
-# Страница друзей
+            return jsonify({'success': True, 'coins': coins, 'level': level, 'current_skin': current_skin})
+        else:
+            app.logger.error('Invalid init data received')
+            return jsonify({'success': False, 'error': 'Invalid init data'}), 403
+    except Exception as e:
+        app.logger.error(f'Ошибка при обработке init_data: {e}')
+        return jsonify({'success': False, 'error': 'Server error'}), 500
+
 @app.route('/friends')
 def friends():
-    user_id = login_session.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
         return redirect(url_for('index'))
 
     conn = get_db_connection()
-
-    # Получаем список друзей
     friends = conn.execute('''
         SELECT Users.ID, Users.Username, Users.Name
         FROM Friends
         JOIN Users ON Friends.Friend_id = Users.ID
         WHERE Friends.User_id = ?
     ''', (user_id,)).fetchall()
-
     conn.close()
     return render_template('friends.html', friends=friends, user_id=user_id)
 
-# Обработка клика по монете
 @app.route('/click', methods=['POST'])
 def click():
-    user_id = login_session.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'User not authenticated'}), 403
 
     conn = get_db_connection()
-    # Получаем текущий уровень пользователя
     user_stat = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
     level = user_stat['Level']
-    
+
     # Определяем количество монет за клик на основе уровня
-    if level <= 1:
-        coins_reward = 1
-    else:
-        coins_reward = 2 ** (level - 1)  # Уровень 2: 2^1=2, Уровень 3: 2^2=4 и т.д.
+    coins_reward = 2 ** (level - 1) if level > 1 else 1
 
     # Обновляем количество монет и кликов
     conn.execute("UPDATE Statistic SET Coins = Coins + ?, Clicks = Clicks + 1 WHERE User_id = ?", (coins_reward, user_id))
@@ -143,10 +143,9 @@ def click():
     conn.close()
     return jsonify({'coins': coins})
 
-# Обработка покупки товаров в магазине
 @app.route('/buy', methods=['POST'])
 def buy():
-    user_id = login_session.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'User not authenticated'}), 403
 
@@ -163,7 +162,6 @@ def buy():
         if level >= 10:
             message = 'Вы достигли максимального уровня.'
         elif coins >= level_cost:
-            # Списываем монеты и повышаем уровень
             conn.execute("UPDATE Statistic SET Coins = Coins - ?, Level = Level + 1, Level_Cost = Level_Cost + 1000 WHERE User_id = ?", (level_cost, user_id))
             conn.commit()
             message = f'Уровень увеличен до {level + 1}!'
@@ -179,7 +177,6 @@ def buy():
         else:
             message = 'Недостаточно монет для улучшения автокликера.'
 
-    # Обработка покупки скинов
     elif item.startswith('skin_'):
         try:
             cost = int(item.split('_')[1])
@@ -200,10 +197,9 @@ def buy():
     conn.close()
     return jsonify({'message': message, 'coins': new_coins})
 
-# Страница магазина
 @app.route('/shop')
 def shop():
-    user_id = login_session.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
         return redirect(url_for('index'))
 
@@ -218,7 +214,7 @@ def shop():
 
 @app.route('/report_error', methods=['POST'])
 def report_error():
-    user_id = login_session.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
         return jsonify({'success': False}), 403
 
@@ -245,15 +241,12 @@ def autoclicker():
                 user_id = user['User_id']
                 autoclicker_level = user['Autoclicker']
                 level = user['Level']
-                if level <= 1:
-                    coins_reward = autoclicker_level * 1
-                else:
-                    coins_reward = autoclicker_level * (2 ** (level - 1))
+                coins_reward = autoclicker_level * (2 ** (level - 1)) if level > 1 else autoclicker_level * 1
                 conn.execute("UPDATE Statistic SET Coins = Coins + ? WHERE User_id = ?", (coins_reward, user_id))
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"Ошибка в автокликере: {e}")
+            app.logger.error(f"Ошибка в автокликере: {e}")
         time.sleep(10)  # Каждые 10 секунд
 
 # Запуск автокликера в отдельном потоке
@@ -262,7 +255,4 @@ def start_autoclicker():
     thread.daemon = True
     thread.start()
 
-# Перемещаем вызов start_autoclicker() за пределы блока if __name__ == '__main__'
 start_autoclicker()
-
-# Ваше приложение Flask готово к импорту Gunicorn

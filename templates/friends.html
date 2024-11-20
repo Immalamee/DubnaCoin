@@ -80,7 +80,7 @@
             const container = document.getElementById('user-container');
             const userId = container.getAttribute('data-user-id');
             const appUrl = window.location.origin + window.location.pathname;
-            const referralLink = appUrl + '?ref=' + userId;
+            const referralLink = `https://t.me/DubnaCoinBot?start=ref_${userId}`;
 
             const modalBody = document.getElementById('referralModalBody');
             modalBody.innerHTML = `
@@ -113,6 +113,8 @@
             window.location.href = '/';
         }
     </script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
         <div id="copyToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
