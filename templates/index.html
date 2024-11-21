@@ -76,6 +76,7 @@
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         const initData = window.Telegram.WebApp.initData || '';
+        console.log('initData:', initData);
         const urlParams = new URLSearchParams(window.location.search);
         const referrer_id = urlParams.get('ref');
 
