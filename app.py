@@ -33,23 +33,40 @@ def check_init_data(init_data):
             return False
         app.logger.info(f'BOT_TOKEN: {token}')
         secret_key = hashlib.sha256(token.encode('utf-8')).digest()
-        data = dict(parse_qsl(init_data, keep_blank_values=True))
-        app.logger.info(f'Parsed data before removing hash and signature: {data}')
-        hash_ = data.pop('hash', None)
-        signature = data.pop('signature', None)  # Удаляем параметр signature
+
+        # Разбиваем init_data на пары ключ=значение без декодирования значений
+        data_dict = {}
+        for item in init_data.split('&'):
+            if '=' in item:
+                key, value = item.split('=', 1)
+                data_dict[key] = value
+        app.logger.info(f'Parsed data before removing hash and signature: {data_dict}')
+
+        hash_ = data_dict.pop('hash', None)
+        signature = data_dict.pop('signature', None)  # Удаляем параметр signature, если он есть
         if not hash_:
             app.logger.error('hash parameter is missing')
             return False
-        app.logger.info(f'Data after removing hash and signature: {data}')
-        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data.items())])
+        app.logger.info(f'Data after removing hash and signature: {data_dict}')
+
+        # Строим data_check_string без декодирования значений
+        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data_dict.items())])
         app.logger.info(f'data_check_string: {data_check_string}')
+
         hmac_string = hmac.new(secret_key, msg=data_check_string.encode('utf-8'), digestmod=hashlib.sha256).hexdigest()
         app.logger.info(f'Computed HMAC: {hmac_string}')
         app.logger.info(f'Received hash: {hash_}')
-        return hmac.compare_digest(hmac_string, hash_)
+
+        if hmac.compare_digest(hmac_string, hash_):
+            app.logger.info('initData verification successful')
+            return True
+        else:
+            app.logger.error('initData verification failed')
+            return False
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False
+
 
 
 @app.route('/')
