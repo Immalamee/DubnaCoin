@@ -3,17 +3,21 @@ import sqlite3
 import threading
 import time
 import logging
-import hmac
-import hashlib
 import json
-from urllib.parse import parse_qsl
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from dotenv import load_dotenv
+from telegram import WebAppData
+from telegram.ext import Application
 
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')
+
+# Настраиваем логирование
 app.logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setLevel(logging.INFO)
+app.logger.addHandler(handler)
 
 DATABASE = 'database.db'
 
@@ -22,52 +26,23 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+# Получаем BOT_TOKEN из переменных окружения
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+if not BOT_TOKEN:
+    raise ValueError('BOT_TOKEN is not set')
+
+# Инициализируем приложение Telegram
+telegram_app = Application.builder().token(BOT_TOKEN).build()
+
+# Обновляем функцию проверки initData
 def check_init_data(init_data):
     try:
-        if not init_data:
-            app.logger.error('initData is empty')
-            return False
-        token = os.environ.get('BOT_TOKEN')
-        if not token:
-            app.logger.error('BOT_TOKEN is not set')
-            return False
-        app.logger.info(f'BOT_TOKEN: {token}')
-        secret_key = hashlib.sha256(token.encode('utf-8')).digest()
-
-        # Разбиваем init_data на пары ключ=значение без декодирования значений
-        data_dict = {}
-        for item in init_data.split('&'):
-            if '=' in item:
-                key, value = item.split('=', 1)
-                data_dict[key] = value
-        app.logger.info(f'Parsed data before removing hash and signature: {data_dict}')
-
-        hash_ = data_dict.pop('hash', None)
-        signature = data_dict.pop('signature', None)  # Удаляем параметр signature, если он есть
-        if not hash_:
-            app.logger.error('hash parameter is missing')
-            return False
-        app.logger.info(f'Data after removing hash and signature: {data_dict}')
-
-        # Строим data_check_string без декодирования значений
-        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data_dict.items())])
-        app.logger.info(f'data_check_string: {data_check_string}')
-
-        hmac_string = hmac.new(secret_key, msg=data_check_string.encode('utf-8'), digestmod=hashlib.sha256).hexdigest()
-        app.logger.info(f'Computed HMAC: {hmac_string}')
-        app.logger.info(f'Received hash: {hash_}')
-
-        if hmac.compare_digest(hmac_string, hash_):
-            app.logger.info('initData verification successful')
-            return True
-        else:
-            app.logger.error('initData verification failed')
-            return False
+        # Используем WebAppData для проверки initData
+        web_app_data = WebAppData.init(data=init_data, bot_token=BOT_TOKEN)
+        return True, web_app_data
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
-        return False
-
-
+        return False, None
 
 @app.route('/')
 def index():
@@ -78,33 +53,27 @@ def process_init_data():
     try:
         data = request.get_json()
         init_data = data.get('initData')
-        referrer_id = data.get('referrer_id')  # Получаем ID пригласившего пользователя
+        referrer_id = data.get('referrer_id')
         app.logger.info(f"Получено init_data: {init_data}")
         app.logger.info(f"Получен referrer_id: {referrer_id}")
 
-        if init_data and check_init_data(init_data):
-            parsed_data = dict(parse_qsl(init_data, keep_blank_values=True))
-            user_data_json = parsed_data.get('user', '{}')
-            user_data = json.loads(user_data_json)
-            user_id = user_data.get('id')
-            username = user_data.get('username', '')
-            first_name = user_data.get('first_name', '')
-            last_name = user_data.get('last_name', '')
+        is_valid, web_app_data = check_init_data(init_data)
+        if is_valid and web_app_data.user:
+            user = web_app_data.user
+            user_id = user.id
+            username = user.username or ''
+            first_name = user.first_name or ''
+            last_name = user.last_name or ''
             name = f"{first_name} {last_name}".strip()
             session['user_id'] = user_id
 
             conn = get_db_connection()
-            user = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
-            if user is None:
+            user_db = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
+            if user_db is None:
                 conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
                 conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
                 conn.commit()
                 app.logger.info(f"Добавлен новый пользователь: {user_id} - {username}")
-            else:
-                current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
-                current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
-                if not current_skin:
-                    current_skin = 'default.png'
 
             # Обработка реферальной ссылки
             if referrer_id and referrer_id != str(user_id):
@@ -118,15 +87,24 @@ def process_init_data():
                     app.logger.info(f"Реферал добавлен: {referrer_id} пригласил {user_id}")
 
             # Получаем актуальные данные пользователя
-            coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
-            level = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Level']
+            coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
+            level_row = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
+            coins = coins_row['Coins'] if coins_row else 0
+            level = level_row['Level'] if level_row else 1
+
             current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
             current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
             if not current_skin:
                 current_skin = 'default.png'
             conn.close()
 
-            return jsonify({'success': True, 'coins': coins, 'level': level, 'current_skin': current_skin})
+            return jsonify({
+                'success': True,
+                'coins': coins,
+                'level': level,
+                'current_skin': current_skin,
+                'username': username
+            })
         else:
             app.logger.error('Invalid init data received')
             return jsonify({'success': False, 'error': 'Invalid init data'}), 403
@@ -220,7 +198,8 @@ def buy():
     else:
         message = 'Неизвестный товар.'
 
-    new_coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
+    new_coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
+    new_coins = new_coins_row['Coins'] if new_coins_row else coins
     conn.close()
     return jsonify({'message': message, 'coins': new_coins})
 
@@ -283,3 +262,7 @@ def start_autoclicker():
     thread.start()
 
 start_autoclicker()
+
+# Если вы используете gunicorn или другой WSGI-сервер, убедитесь, что приложение запускается корректно
+if __name__ == '__main__':
+    app.run(debug=True)
