@@ -50,39 +50,68 @@ serializer = URLSafeSerializer(SECRET_KEY)
 def check_init_data(init_data):
     try:
         app.logger.info(f'Проверка init_data: {init_data}')
+        # Парсим initData в словарь
         data = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
         app.logger.info(f'Парсинг init_data в словарь: {data}')
+
+        # Извлекаем хэш из данных
         hash_from_telegram = data.pop('hash', None)
         if not hash_from_telegram:
             app.logger.error('Параметр hash отсутствует в init_data')
             return False, None
+
+        # Удаляем параметр signature, если он есть
+        data.pop('signature', None)
+
+        # Сортируем ключи и формируем строку данных
         sorted_data = sorted(data.items())
         data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_data])
         app.logger.info(f'data_check_string: {data_check_string}')
+
+        # Вычисляем секретный ключ
         secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
-        hmac_string = hmac.new(secret_key, msg=data_check_string.encode(), digestmod=hashlib.sha256).hexdigest()
-        app.logger.info(f'Вычисленный хэш: {hmac_string}')
+
+        # Вычисляем хэш
+        hmac_hash = hmac.new(secret_key, msg=data_check_string.encode(), digestmod=hashlib.sha256).hexdigest()
+        app.logger.info(f'Вычисленный хэш: {hmac_hash}')
         app.logger.info(f'Хэш из Telegram: {hash_from_telegram}')
-        if hmac_string != hash_from_telegram:
+
+        if hmac_hash != hash_from_telegram:
             app.logger.error('Хэш не совпадает, проверка не пройдена')
             return False, None
+
+        # Проверяем, что auth_date не слишком старый (например, не более 1 дня)
+        auth_date = int(data.get('auth_date', '0'))
+        current_time = int(time.time())
+        if current_time - auth_date > 86400:
+            app.logger.error('auth_date слишком старый')
+            return False, None
+
+        # Парсим данные пользователя
         user_data_json = data.get('user')
         if not user_data_json:
             app.logger.error('Данные пользователя отсутствуют в init_data')
             return False, None
+
         user_data = json.loads(user_data_json)
         app.logger.info(f'Данные пользователя: {user_data}')
+
+        # Создаём объект пользователя
         class User:
             def __init__(self, data):
                 self.id = data.get('id')
                 self.username = data.get('username')
                 self.first_name = data.get('first_name')
                 self.last_name = data.get('last_name')
+
         user = User(user_data)
         return True, user
+
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False, None
+
+
 
 
 @app.route('/')
