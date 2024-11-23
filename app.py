@@ -47,6 +47,15 @@ def check_init_data(init_data):
 @app.route('/')
 def index():
     return render_template('index.html')
+    
+@app.route('/session_test')
+def session_test():
+    user_id = session.get('user_id')
+    if user_id:
+        return f"User ID in session: {user_id}"
+    else:
+        return "No user ID in session"
+
 
 @app.route('/process_init_data', methods=['POST'])
 def process_init_data():
