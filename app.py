@@ -50,20 +50,21 @@ serializer = URLSafeSerializer(SECRET_KEY)
 def check_init_data(init_data):
     try:
         app.logger.info(f'Проверка init_data: {init_data}')
-        
-        # Разбиваем initData на пары ключ-значение без декодирования
+
+        # Разбиваем init_data на пары ключ=значение
         params = init_data.split('&')
+
         data = {}
         hash_from_telegram = None
 
         for param in params:
-            if '=' not in param:
+            if not param:
                 continue
             key, value = param.split('=', 1)
             if key == 'hash':
                 hash_from_telegram = value
             else:
-                data[key] = value
+                data[key] = value  # Значения не декодируем!
 
         if not hash_from_telegram:
             app.logger.error('Параметр hash отсутствует в init_data')
@@ -74,16 +75,17 @@ def check_init_data(init_data):
         # Удаляем параметр 'signature', если он есть
         data.pop('signature', None)
 
-        # Сортируем ключи и формируем data_check_string без декодирования значений
-        sorted_data = sorted(data.items())
-        data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_data])
+        # Сортируем ключи и формируем data_check_string
+        sorted_keys = sorted(data.keys())
+        data_check_arr = [f"{key}={data[key]}" for key in sorted_keys]
+        data_check_string = '\n'.join(data_check_arr)
         app.logger.info(f'data_check_string: {data_check_string}')
 
         # Вычисляем секретный ключ
-        secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
+        secret_key = hashlib.sha256(BOT_TOKEN.encode('utf-8')).digest()
 
         # Вычисляем хэш
-        hmac_hash = hmac.new(secret_key, msg=data_check_string.encode(), digestmod=hashlib.sha256).hexdigest()
+        hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
         app.logger.info(f'Вычисленный хэш: {hmac_hash}')
         app.logger.info(f'Хэш из Telegram: {hash_from_telegram}')
 
@@ -91,15 +93,15 @@ def check_init_data(init_data):
             app.logger.error('Хэш не совпадает, проверка не пройдена')
             return False, None
 
-        # Проверяем, что auth_date не слишком старый (например, не более 1 дня)
+        # Проверяем актуальность auth_date
         auth_date = int(data.get('auth_date', '0'))
         current_time = int(time.time())
         if current_time - auth_date > 86400:
             app.logger.error('auth_date слишком старый')
             return False, None
 
-        # Декодируем значения параметров после успешной проверки хэша
-        user_data_json = urllib.parse.unquote_plus(data.get('user', ''))
+        # Декодируем и обрабатываем данные пользователя
+        user_data_json = urllib.parse.unquote(data.get('user', ''))
         if not user_data_json:
             app.logger.error('Данные пользователя отсутствуют в init_data')
             return False, None
@@ -121,6 +123,7 @@ def check_init_data(init_data):
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False, None
+
 
 @app.route('/')
 def index():
