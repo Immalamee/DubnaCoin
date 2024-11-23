@@ -9,8 +9,6 @@ import hmac
 import urllib.parse
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from dotenv import load_dotenv
-
-# Импортируем необходимые модули
 from itsdangerous import URLSafeSerializer, BadSignature
 from telegram import WebAppData
 
@@ -42,12 +40,14 @@ serializer = URLSafeSerializer(SECRET_KEY)
 # Ваша рабочая функция check_init_data
 def check_init_data(init_data):
     try:
-        # Используем WebAppData для проверки initData
-        web_app_data = WebAppData.init(data=init_data, bot_token=BOT_TOKEN)
+        app.logger.info(f'Проверка init_data: {init_data}')
+        web_app_data = WebAppData.from_webapp(init_data=init_data, bot_token=BOT_TOKEN)
+        app.logger.info('initData verification successful')
         return True, web_app_data
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False, None
+
 
 @app.route('/')
 def index():
