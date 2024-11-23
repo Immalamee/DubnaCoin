@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     const initData = window.Telegram.WebApp.initData || '';
+    console.log('DOMContentLoaded event triggered');
     console.log('initData:', initData);
+    console.log('Отправка запроса к /process_init_data');
     const urlParams = new URLSearchParams(window.location.search);
     const referrer_id = urlParams.get('ref');
 
