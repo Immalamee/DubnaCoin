@@ -8,8 +8,6 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from dotenv import load_dotenv
 from telegram import WebAppData
 from telegram.ext import Application
-from telegram import WebAppUser
-from telegram.helpers import check_webapp_signature
 
 load_dotenv()
 app = Flask(__name__)
@@ -39,11 +37,8 @@ telegram_app = Application.builder().token(BOT_TOKEN).build()
 # Обновляем функцию проверки initData
 def check_init_data(init_data):
     try:
-        if not init_data:
-            app.logger.error('initData is empty')
-            return False, None
-        from telegram import WebAppData
-        web_app_data = WebAppData(**init_data)
+        # Используем WebAppData для проверки initData
+        web_app_data = WebAppData.init(data=init_data, bot_token=BOT_TOKEN)
         return True, web_app_data
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
