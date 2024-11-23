@@ -107,12 +107,52 @@ def process_init_data():
         return jsonify({'success': False, 'error': 'Server error'}), 500
 
 # Ваша рабочая функция check_init_data
+# def check_init_data(init_data):
+#     try:
+#         app.logger.info(f'Проверка init_data: {init_data}')
+#         web_app_data = WebAppData.from_webapp(init_data=init_data, bot_token=BOT_TOKEN)
+#         app.logger.info('initData verification successful')
+#         return True, web_app_data
+#     except Exception as e:
+#         app.logger.error(f'Ошибка проверки init_data: {e}')
+#         return False, None
+def check_webapp_signature(token: str, init_data: str):
+    data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True))
+    if 'hash' not in data:
+        return False
+    hash_ = data.pop('hash')
+    # Удаляем параметр 'hash' из данных
+    data_check_string = '\n'.join(f"{k}={v}" for k, v in sorted(data.items()))
+    secret_key = hashlib.sha256(token.encode('utf-8')).digest()
+    hmac_string = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(hmac_string, hash_)
+
 def check_init_data(init_data):
     try:
         app.logger.info(f'Проверка init_data: {init_data}')
-        web_app_data = WebAppData.from_webapp(init_data=init_data, bot_token=BOT_TOKEN)
-        app.logger.info('initData verification successful')
-        return True, web_app_data
+        is_valid = check_webapp_signature(BOT_TOKEN, init_data)
+        if not is_valid:
+            app.logger.error('Хэш не совпадает, проверка не пройдена')
+            return False, None
+
+        # Парсим данные после успешной проверки
+        data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True))
+        user_data_json = data.get('user')
+        if user_data_json:
+            user_data = json.loads(user_data_json)
+            app.logger.info(f'Данные пользователя: {user_data}')
+            # Создаём объект пользователя
+            class User:
+                def __init__(self, data):
+                    self.id = data.get('id')
+                    self.username = data.get('username')
+                    self.first_name = data.get('first_name')
+                    self.last_name = data.get('last_name')
+            user = User(user_data)
+            return True, user
+        else:
+            app.logger.error('Данные пользователя отсутствуют в init_data')
+            return False, None
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False, None
