@@ -51,25 +51,37 @@ serializer = URLSafeSerializer(SECRET_KEY)
 def check_init_data(init_data):
     import hashlib
     import hmac
-    from urllib.parse import parse_qsl
 
     app.logger.info(f'Проверка init_data: {init_data}')
 
-    # Парсим init_data без декодирования значений
-    data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True, encoding='latin-1'))
+    # Разбиваем init_data на пары ключ=значение без декодирования значений
+    params = init_data.split('&')
+    data = {}
+    hash_from_telegram = None
 
-    # Извлекаем hash из данных
-    hash_ = data.pop('hash', None)
-    if not hash_:
+    for param in params:
+        if not param:
+            continue
+        key_value = param.split('=', 1)
+        if len(key_value) != 2:
+            continue
+        key, value = key_value
+        if key == 'hash':
+            hash_from_telegram = value
+        else:
+            data[key] = value  # Значения НЕ декодируем
+
+    if not hash_from_telegram:
         app.logger.error('Параметр hash отсутствует в init_data')
         return False, None
 
-    # Удаляем параметр 'signature' из данных, если он есть
+    # Удаляем 'hash' и 'signature' из данных, если они есть
+    data.pop('hash', None)
     data.pop('signature', None)
 
-    # Формируем data_check_string из отсортированных ключей
-    data_check_arr = [f"{k}={data[k]}" for k in sorted(data.keys())]
-    data_check_string = '\n'.join(data_check_arr)
+    # Сортируем ключи и формируем data_check_string без декодирования значений
+    sorted_keys = sorted(data.keys())
+    data_check_string = '\n'.join(f"{key}={data[key]}" for key in sorted_keys)
     app.logger.info(f'data_check_string:\n{data_check_string}')
 
     # Вычисляем секретный ключ
@@ -78,9 +90,9 @@ def check_init_data(init_data):
     # Вычисляем хэш
     hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
     app.logger.info(f'Вычисленный хэш: {hmac_hash}')
-    app.logger.info(f'Хэш из Telegram: {hash_}')
+    app.logger.info(f'Хэш из Telegram: {hash_from_telegram}')
 
-    if hmac_hash != hash_:
+    if hmac_hash != hash_from_telegram:
         app.logger.error('Хэш не совпадает, проверка не пройдена')
         return False, None
 
@@ -91,23 +103,26 @@ def check_init_data(init_data):
         app.logger.error('auth_date слишком старый')
         return False, None
 
-    # Парсим данные пользователя
-    user_data_json = data.get('user')
-    if user_data_json:
-        user_data = json.loads(user_data_json)
-        app.logger.info(f'Данные пользователя: {user_data}')
-        # Создаём объект пользователя
-        class User:
-            def __init__(self, data):
-                self.id = data.get('id')
-                self.username = data.get('username')
-                self.first_name = data.get('first_name')
-                self.last_name = data.get('last_name')
-        user = User(user_data)
-        return True, user
-    else:
+    # Декодируем значение 'user' после успешной проверки хэша
+    user_data_json = urllib.parse.unquote(data.get('user', ''))
+    if not user_data_json:
         app.logger.error('Данные пользователя отсутствуют в init_data')
         return False, None
+
+    user_data = json.loads(user_data_json)
+    app.logger.info(f'Данные пользователя: {user_data}')
+
+    # Создаём объект пользователя
+    class User:
+        def __init__(self, data):
+            self.id = data.get('id')
+            self.username = data.get('username')
+            self.first_name = data.get('first_name')
+            self.last_name = data.get('last_name')
+
+    user = User(user_data)
+    return True, user
+
 
 
 
