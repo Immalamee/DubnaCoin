@@ -50,20 +50,31 @@ serializer = URLSafeSerializer(SECRET_KEY)
 def check_init_data(init_data):
     try:
         app.logger.info(f'Проверка init_data: {init_data}')
-        # Парсим initData в словарь
-        data = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
-        app.logger.info(f'Парсинг init_data в словарь: {data}')
+        
+        # Разбиваем initData на пары ключ-значение без декодирования
+        params = init_data.split('&')
+        data = {}
+        hash_from_telegram = None
 
-        # Извлекаем хэш из данных
-        hash_from_telegram = data.pop('hash', None)
+        for param in params:
+            if '=' not in param:
+                continue
+            key, value = param.split('=', 1)
+            if key == 'hash':
+                hash_from_telegram = value
+            else:
+                data[key] = value
+
         if not hash_from_telegram:
             app.logger.error('Параметр hash отсутствует в init_data')
             return False, None
 
-        # Удаляем параметр signature, если он есть
+        # Удаляем параметр 'hash' из данных, если он есть
+        data.pop('hash', None)
+        # Удаляем параметр 'signature', если он есть
         data.pop('signature', None)
 
-        # Сортируем ключи и формируем строку данных
+        # Сортируем ключи и формируем data_check_string без декодирования значений
         sorted_data = sorted(data.items())
         data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted_data])
         app.logger.info(f'data_check_string: {data_check_string}')
@@ -87,8 +98,8 @@ def check_init_data(init_data):
             app.logger.error('auth_date слишком старый')
             return False, None
 
-        # Парсим данные пользователя
-        user_data_json = data.get('user')
+        # Декодируем значения параметров после успешной проверки хэша
+        user_data_json = urllib.parse.unquote_plus(data.get('user', ''))
         if not user_data_json:
             app.logger.error('Данные пользователя отсутствуют в init_data')
             return False, None
@@ -110,9 +121,6 @@ def check_init_data(init_data):
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False, None
-
-
-
 
 @app.route('/')
 def index():
