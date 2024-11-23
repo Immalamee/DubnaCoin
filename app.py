@@ -4,16 +4,21 @@ import threading
 import time
 import logging
 import json
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+import hashlib
+import hmac
+import urllib.parse
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 from dotenv import load_dotenv
+
+# Импортируем необходимые модули
+from itsdangerous import URLSafeSerializer, BadSignature
 from telegram import WebAppData
-from telegram.ext import Application
 
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')
 
-# Настраиваем логирование
+# Настройка логирования
 app.logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 handler.setLevel(logging.INFO)
@@ -26,15 +31,15 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# Получаем BOT_TOKEN из переменных окружения
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError('BOT_TOKEN is not set')
 
-# Инициализируем приложение Telegram
-telegram_app = Application.builder().token(BOT_TOKEN).build()
+# Инициализируем сериализатор для токенов
+SECRET_KEY = app.secret_key
+serializer = URLSafeSerializer(SECRET_KEY)
 
-# Обновляем функцию проверки initData
+# Ваша рабочая функция check_init_data
 def check_init_data(init_data):
     try:
         # Используем WebAppData для проверки initData
@@ -47,15 +52,6 @@ def check_init_data(init_data):
 @app.route('/')
 def index():
     return render_template('index.html')
-    
-@app.route('/session_test')
-def session_test():
-    user_id = session.get('user_id')
-    if user_id:
-        return f"User ID in session: {user_id}"
-    else:
-        return "No user ID in session"
-
 
 @app.route('/process_init_data', methods=['POST'])
 def process_init_data():
@@ -63,8 +59,8 @@ def process_init_data():
         data = request.get_json()
         init_data = data.get('initData')
         referrer_id = data.get('referrer_id')
-        app.logger.info(f"Получено init_data: {init_data}")
-        app.logger.info(f"Получен referrer_id: {referrer_id}")
+        app.logger.info(f"Received init_data: {init_data}")
+        app.logger.info(f"Received referrer_id: {referrer_id}")
 
         is_valid, web_app_data = check_init_data(init_data)
         if is_valid and web_app_data.user:
@@ -74,7 +70,6 @@ def process_init_data():
             first_name = user.first_name or ''
             last_name = user.last_name or ''
             name = f"{first_name} {last_name}".strip()
-            session['user_id'] = user_id
 
             conn = get_db_connection()
             user_db = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
@@ -82,7 +77,7 @@ def process_init_data():
                 conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
                 conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
                 conn.commit()
-                app.logger.info(f"Добавлен новый пользователь: {user_id} - {username}")
+                app.logger.info(f"New user added: {user_id} - {username}")
 
             # Обработка реферальной ссылки
             if referrer_id and referrer_id != str(user_id):
@@ -93,7 +88,7 @@ def process_init_data():
                     conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
                     conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
                     conn.commit()
-                    app.logger.info(f"Реферал добавлен: {referrer_id} пригласил {user_id}")
+                    app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
 
             # Получаем актуальные данные пользователя
             coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
@@ -107,24 +102,36 @@ def process_init_data():
                 current_skin = 'default.png'
             conn.close()
 
+            # Генерируем токен
+            token = serializer.dumps({'user_id': user_id})
+
             return jsonify({
                 'success': True,
                 'coins': coins,
                 'level': level,
                 'current_skin': current_skin,
-                'username': username
+                'username': username,
+                'token': token
             })
         else:
             app.logger.error('Invalid init data received')
             return jsonify({'success': False, 'error': 'Invalid init data'}), 403
     except Exception as e:
-        app.logger.error(f'Ошибка при обработке init_data: {e}')
+        app.logger.error(f'Error processing init_data: {e}')
         return jsonify({'success': False, 'error': 'Server error'}), 500
+
+# Обновляем маршруты для использования токена вместо сессий
 
 @app.route('/friends')
 def friends():
-    user_id = session.get('user_id')
-    if not user_id:
+    token = request.args.get('token')
+    if not token:
+        return redirect(url_for('index'))
+
+    try:
+        token_data = serializer.loads(token)
+        user_id = token_data['user_id']
+    except BadSignature:
         return redirect(url_for('index'))
 
     conn = get_db_connection()
@@ -135,13 +142,20 @@ def friends():
         WHERE Friends.User_id = ?
     ''', (user_id,)).fetchall()
     conn.close()
-    return render_template('friends.html', friends=friends, user_id=user_id)
+    return render_template('friends.html', friends=friends, user_id=user_id, token=token)
 
 @app.route('/click', methods=['POST'])
 def click():
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'User not authenticated'}), 403
+    data = request.get_json()
+    token = data.get('token')
+    if not token:
+        return jsonify({'error': 'Authentication token missing'}), 403
+
+    try:
+        token_data = serializer.loads(token)
+        user_id = token_data['user_id']
+    except BadSignature:
+        return jsonify({'error': 'Invalid authentication token'}), 403
 
     conn = get_db_connection()
     user_stat = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
@@ -159,11 +173,18 @@ def click():
 
 @app.route('/buy', methods=['POST'])
 def buy():
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'User not authenticated'}), 403
+    data = request.get_json()
+    token = data.get('token')
+    if not token:
+        return jsonify({'error': 'Authentication token missing'}), 403
 
-    item = request.json.get('item')
+    try:
+        token_data = serializer.loads(token)
+        user_id = token_data['user_id']
+    except BadSignature:
+        return jsonify({'error': 'Invalid authentication token'}), 403
+
+    item = data.get('item')
 
     conn = get_db_connection()
     user_stat = conn.execute("SELECT * FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
@@ -214,8 +235,14 @@ def buy():
 
 @app.route('/shop')
 def shop():
-    user_id = session.get('user_id')
-    if not user_id:
+    token = request.args.get('token')
+    if not token:
+        return redirect(url_for('index'))
+
+    try:
+        token_data = serializer.loads(token)
+        user_id = token_data['user_id']
+    except BadSignature:
         return redirect(url_for('index'))
 
     conn = get_db_connection()
@@ -225,15 +252,21 @@ def shop():
     level_cost = user_stat['Level_Cost']
     conn.close()
 
-    return render_template('shop.html', coins=coins, level=level, level_cost=level_cost)
+    return render_template('shop.html', coins=coins, level=level, level_cost=level_cost, token=token)
 
 @app.route('/report_error', methods=['POST'])
 def report_error():
-    user_id = session.get('user_id')
-    if not user_id:
+    data = request.get_json()
+    token = data.get('token')
+    if not token:
         return jsonify({'success': False}), 403
 
-    data = request.get_json()
+    try:
+        token_data = serializer.loads(token)
+        user_id = token_data['user_id']
+    except BadSignature:
+        return jsonify({'success': False}), 403
+
     error_message = data.get('error_message')
 
     if not error_message:
@@ -272,6 +305,5 @@ def start_autoclicker():
 
 start_autoclicker()
 
-# Если вы используете gunicorn или другой WSGI-сервер, убедитесь, что приложение запускается корректно
 if __name__ == '__main__':
     app.run(debug=True)

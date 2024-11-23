@@ -1,29 +1,21 @@
 document.addEventListener('DOMContentLoaded', function() {
-    if (!window.Telegram || !window.Telegram.WebApp) {
-        console.error('Telegram WebApp SDK не доступен');
-        document.getElementById('welcome-message').innerText = 'Пожалуйста, откройте приложение через Telegram.';
-        return;
-    }
-
-    const initData = window.Telegram.WebApp.initDataUnsafe;
+    const initData = window.Telegram.WebApp.initData || '';
     console.log('initData:', initData);
     const urlParams = new URLSearchParams(window.location.search);
     const referrer_id = urlParams.get('ref');
 
-    const requestData = { initData: initData, referrer_id: referrer_id };
-    console.log('Отправляемые данные:', JSON.stringify(requestData));
-
     fetch('/process_init_data', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: initData, referrer_id: referrer_id })
     })
     .then(response => response.json())
     .then(data => {
         console.log('Ответ от сервера:', data);
         if (data.success) {
+            // Сохраняем токен
+            window.userToken = data.token;
+
             // Обновляем элементы страницы
             document.getElementById('welcome-message').innerHTML = `Добро пожаловать, <span class="text-primary">${data.username}</span>!`;
             document.getElementById('level').innerText = data.level;
@@ -61,7 +53,7 @@ function initializeApp() {
         fetch('/report_error', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ error_message: errorMessage })
+            body: JSON.stringify({ error_message: errorMessage, token: window.userToken })
         })
         .then(response => response.json())
         .then(data => {
@@ -97,32 +89,36 @@ function initializeApp() {
 }
 
 function clickCoin() {
-    fetch('/click', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.coins !== undefined) {
-                document.getElementById('coins').innerText = data.coins;
-                const coinButton = document.getElementById('coin-button');
-                coinButton.classList.add('flash');
-                setTimeout(() => {
-                    coinButton.classList.remove('flash');
-                }, 300);
-            } else if (data.error) {
-                showModal('Ошибка', data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка при клике:', error);
-            showModal('Ошибка', 'Произошла ошибка при обработке вашего клика. Пожалуйста, попробуйте позже.');
-        });
+    fetch('/click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: window.userToken })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.coins !== undefined) {
+            document.getElementById('coins').innerText = data.coins;
+            const coinButton = document.getElementById('coin-button');
+            coinButton.classList.add('flash');
+            setTimeout(() => {
+                coinButton.classList.remove('flash');
+            }, 300);
+        } else if (data.error) {
+            showModal('Ошибка', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка при клике:', error);
+        showModal('Ошибка', 'Произошла ошибка при обработке вашего клика. Пожалуйста, попробуйте позже.');
+    });
 }
 
 function openShop() {
-    window.location.href = '/shop';
+    window.location.href = `/shop?token=${encodeURIComponent(window.userToken)}`;
 }
 
 function openFriends() {
-    window.location.href = '/friends';
+    window.location.href = `/friends?token=${encodeURIComponent(window.userToken)}`;
 }
 
 function showModal(title, message) {
