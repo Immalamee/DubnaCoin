@@ -1,17 +1,28 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const initData = window.Telegram.WebApp.initData || '';
+    if (!window.Telegram || !window.Telegram.WebApp) {
+        console.error('Telegram WebApp SDK не доступен');
+        document.getElementById('welcome-message').innerText = 'Пожалуйста, откройте приложение через Telegram.';
+        return;
+    }
+
+    const initData = window.Telegram.WebApp.initDataUnsafe;
+    console.log('initData:', initData);
     const urlParams = new URLSearchParams(window.location.search);
     const referrer_id = urlParams.get('ref');
+
+    const requestData = { initData: initData, referrer_id: referrer_id };
+    console.log('Отправляемые данные:', JSON.stringify(requestData));
 
     fetch('/process_init_data', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ initData: initData, referrer_id: referrer_id })
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Ответ от сервера:', data);
         if (data.success) {
             // Обновляем элементы страницы
             document.getElementById('welcome-message').innerHTML = `Добро пожаловать, <span class="text-primary">${data.username}</span>!`;

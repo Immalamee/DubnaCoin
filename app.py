@@ -37,8 +37,11 @@ telegram_app = Application.builder().token(BOT_TOKEN).build()
 # Обновляем функцию проверки initData
 def check_init_data(init_data):
     try:
-        # Используем WebAppData для проверки initData
-        web_app_data = WebAppData.init(data=init_data, bot_token=BOT_TOKEN)
+        if not init_data:
+            app.logger.error('initData is empty')
+            return False, None
+        from telegram import WebAppData
+        web_app_data = WebAppData(**init_data)
         return True, web_app_data
     except Exception as e:
         app.logger.error(f'Ошибка проверки init_data: {e}')
