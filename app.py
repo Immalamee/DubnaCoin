@@ -38,99 +38,6 @@ if not BOT_TOKEN:
 SECRET_KEY = app.secret_key
 serializer = URLSafeSerializer(SECRET_KEY)
 
-# Ваша рабочая функция check_init_data
-# def check_init_data(init_data):
-#     try:
-#         app.logger.info(f'Проверка init_data: {init_data}')
-#         web_app_data = WebAppData.from_webapp(init_data=init_data, bot_token=BOT_TOKEN)
-#         app.logger.info('initData verification successful')
-#         return True, web_app_data
-#     except Exception as e:
-#         app.logger.error(f'Ошибка проверки init_data: {e}')
-#         return False, None
-def check_init_data(init_data):
-    import hashlib
-    import hmac
-
-    app.logger.info(f'Проверка init_data: {init_data}')
-
-    # Разбиваем init_data на пары ключ=значение без декодирования значений
-    params = init_data.split('&')
-    data = {}
-    hash_from_telegram = None
-
-    for param in params:
-        if not param:
-            continue
-        key_value = param.split('=', 1)
-        if len(key_value) != 2:
-            continue
-        key, value = key_value
-        if key == 'hash':
-            hash_from_telegram = value
-        else:
-            data[key] = value  # Значения НЕ декодируем
-
-    if not hash_from_telegram:
-        app.logger.error('Параметр hash отсутствует в init_data')
-        return False, None
-
-    # Удаляем 'hash' и 'signature' из данных, если они есть
-    data.pop('hash', None)
-    data.pop('signature', None)
-
-    # Сортируем ключи и формируем data_check_string без декодирования значений
-    sorted_keys = sorted(data.keys())
-    data_check_string = '\n'.join(f"{key}={data[key]}" for key in sorted_keys)
-    app.logger.info(f'data_check_string:\n{data_check_string}')
-
-    # Вычисляем секретный ключ
-    secret_key = hashlib.sha256(BOT_TOKEN.encode('utf-8')).digest()
-
-    # Вычисляем хэш
-    hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-    app.logger.info(f'Вычисленный хэш: {hmac_hash}')
-    app.logger.info(f'Хэш из Telegram: {hash_from_telegram}')
-
-    if hmac_hash != hash_from_telegram:
-        app.logger.error('Хэш не совпадает, проверка не пройдена')
-        return False, None
-
-    # Проверяем актуальность auth_date
-    auth_date = int(data.get('auth_date', '0'))
-    current_time = int(time.time())
-    if current_time - auth_date > 86400:
-        app.logger.error('auth_date слишком старый')
-        return False, None
-
-    # Декодируем значение 'user' после успешной проверки хэша
-    user_data_json = urllib.parse.unquote(data.get('user', ''))
-    if not user_data_json:
-        app.logger.error('Данные пользователя отсутствуют в init_data')
-        return False, None
-
-    user_data = json.loads(user_data_json)
-    app.logger.info(f'Данные пользователя: {user_data}')
-
-    # Создаём объект пользователя
-    class User:
-        def __init__(self, data):
-            self.id = data.get('id')
-            self.username = data.get('username')
-            self.first_name = data.get('first_name')
-            self.last_name = data.get('last_name')
-
-    user = User(user_data)
-    return True, user
-
-
-
-
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
 @app.route('/process_init_data', methods=['POST'])
 def process_init_data():
     try:
@@ -198,6 +105,23 @@ def process_init_data():
     except Exception as e:
         app.logger.error(f'Error processing init_data: {e}')
         return jsonify({'success': False, 'error': 'Server error'}), 500
+
+# Ваша рабочая функция check_init_data
+def check_init_data(init_data):
+    try:
+        app.logger.info(f'Проверка init_data: {init_data}')
+        web_app_data = WebAppData.from_webapp(init_data=init_data, bot_token=BOT_TOKEN)
+        app.logger.info('initData verification successful')
+        return True, web_app_data
+    except Exception as e:
+        app.logger.error(f'Ошибка проверки init_data: {e}')
+        return False, None
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
 
 # Обновляем маршруты для использования токена вместо сессий
 
