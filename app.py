@@ -37,44 +37,18 @@ if not BOT_TOKEN:
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 
 # Обновляем функцию проверки initData
-#def check_init_data(init_data):
-#    try:
-#        if not init_data:
-#            app.logger.error('initData is empty')
-#            return False, None
-#        from telegram import WebAppData
-#        web_app_data = WebAppData(**init_data)
-#        return True, web_app_data
-#    except Exception as e:
-#        app.logger.error(f'Ошибка проверки init_data: {e}')
-#        return False, None
-
 def check_init_data(init_data):
     try:
         if not init_data:
             app.logger.error('initData is empty')
             return False, None
-
-        # Проверяем подпись initData
-        is_valid = check_webapp_signature(BOT_TOKEN, init_data)
-        if not is_valid:
-            app.logger.error('initData verification failed')
-            return False, None
-
-        # Парсим initData в словарь
-        data = dict(urllib.parse.parse_qsl(init_data))
-        user_data_json = data.get('user')
-        if not user_data_json:
-            app.logger.error('User data not found in initData')
-            return False, None
-
-        # Преобразуем JSON-строку user_data в словарь
-        user_data = json.loads(user_data_json)
-        web_app_user = WebAppUser(**user_data)
-        return True, web_app_user
+        from telegram import WebAppData
+        web_app_data = WebAppData(**init_data)
+        return True, web_app_data
     except Exception as e:
-        app.logger.error(f'Error in check_init_data: {e}')
+        app.logger.error(f'Ошибка проверки init_data: {e}')
         return False, None
+
 
 @app.route('/')
 def index():
