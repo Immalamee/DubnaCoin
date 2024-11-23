@@ -49,7 +49,6 @@ def check_init_data(init_data):
         app.logger.error(f'Ошибка проверки init_data: {e}')
         return False, None
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -65,10 +64,11 @@ def process_init_data():
 
         is_valid, web_app_data = check_init_data(init_data)
         if is_valid and web_app_data.user:
-            ser_id = web_app_user.id
-            username = web_app_user.username or ''
-            first_name = web_app_user.first_name or ''
-            last_name = web_app_user.last_name or ''
+            user = web_app_data.user
+            user_id = user.id
+            username = user.username or ''
+            first_name = user.first_name or ''
+            last_name = user.last_name or ''
             name = f"{first_name} {last_name}".strip()
             session['user_id'] = user_id
 
