@@ -11,6 +11,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer, BadSignature
 from telegram import WebAppData
+from urllib.parse import parse_qsl
 
 load_dotenv()
 app = Flask(__name__)
@@ -48,67 +49,47 @@ serializer = URLSafeSerializer(SECRET_KEY)
 #         app.logger.error(f'Ошибка проверки init_data: {e}')
 #         return False, None
 def check_init_data(init_data):
-    try:
-        app.logger.info(f'Проверка init_data: {init_data}')
+    app.logger.info(f'Проверка init_data: {init_data}')
+    app.logger.info(f"Длина BOT_TOKEN: {len(BOT_TOKEN)}")
 
-        # Разбиваем init_data на пары ключ=значение
-        params = init_data.split('&')
+    # Парсим init_data без декодирования значений
+    data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True, encoding='latin-1'))
 
-        data = {}
-        hash_from_telegram = None
+    # Извлекаем hash из данных
+    hash_ = data.pop('hash', None)
+    if not hash_:
+        app.logger.error('Параметр hash отсутствует в init_data')
+        return False, None
 
-        for param in params:
-            if not param:
-                continue
-            key, value = param.split('=', 1)
-            if key == 'hash':
-                hash_from_telegram = value
-            else:
-                data[key] = value  # Значения не декодируем!
+    # Формируем data_check_string из отсортированных ключей
+    data_check_arr = [f"{k}={data[k]}" for k in sorted(data.keys())]
+    data_check_string = '\n'.join(data_check_arr)
+    app.logger.info(f'data_check_string: {data_check_string}')
 
-        if not hash_from_telegram:
-            app.logger.error('Параметр hash отсутствует в init_data')
-            return False, None
+    # Вычисляем секретный ключ
+    secret_key = hashlib.sha256(BOT_TOKEN.encode('utf-8')).digest()
 
-        # Удаляем параметр 'hash' из данных, если он есть
-        data.pop('hash', None)
-        # Удаляем параметр 'signature', если он есть
-        data.pop('signature', None)
+    # Вычисляем хэш
+    hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+    app.logger.info(f'Вычисленный хэш: {hmac_hash}')
+    app.logger.info(f'Хэш из Telegram: {hash_}')
 
-        # Сортируем ключи и формируем data_check_string
-        sorted_keys = sorted(data.keys())
-        data_check_arr = [f"{key}={data[key]}" for key in sorted_keys]
-        data_check_string = '\n'.join(data_check_arr)
-        app.logger.info(f'data_check_string: {data_check_string}')
+    if hmac_hash != hash_:
+        app.logger.error('Хэш не совпадает, проверка не пройдена')
+        return False, None
 
-        # Вычисляем секретный ключ
-        secret_key = hashlib.sha256(BOT_TOKEN.encode('utf-8')).digest()
+    # Проверяем актуальность auth_date
+    auth_date = int(data.get('auth_date', '0'))
+    current_time = int(time.time())
+    if current_time - auth_date > 86400:
+        app.logger.error('auth_date слишком старый')
+        return False, None
 
-        # Вычисляем хэш
-        hmac_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-        app.logger.info(f'Вычисленный хэш: {hmac_hash}')
-        app.logger.info(f'Хэш из Telegram: {hash_from_telegram}')
-
-        if hmac_hash != hash_from_telegram:
-            app.logger.error('Хэш не совпадает, проверка не пройдена')
-            return False, None
-
-        # Проверяем актуальность auth_date
-        auth_date = int(data.get('auth_date', '0'))
-        current_time = int(time.time())
-        if current_time - auth_date > 86400:
-            app.logger.error('auth_date слишком старый')
-            return False, None
-
-        # Декодируем и обрабатываем данные пользователя
-        user_data_json = urllib.parse.unquote(data.get('user', ''))
-        if not user_data_json:
-            app.logger.error('Данные пользователя отсутствуют в init_data')
-            return False, None
-
+    # Парсим данные пользователя
+    user_data_json = data.get('user')
+    if user_data_json:
         user_data = json.loads(user_data_json)
         app.logger.info(f'Данные пользователя: {user_data}')
-
         # Создаём объект пользователя
         class User:
             def __init__(self, data):
@@ -116,13 +97,12 @@ def check_init_data(init_data):
                 self.username = data.get('username')
                 self.first_name = data.get('first_name')
                 self.last_name = data.get('last_name')
-
         user = User(user_data)
         return True, user
-
-    except Exception as e:
-        app.logger.error(f'Ошибка проверки init_data: {e}')
+    else:
+        app.logger.error('Данные пользователя отсутствуют в init_data')
         return False, None
+
 
 
 @app.route('/')
