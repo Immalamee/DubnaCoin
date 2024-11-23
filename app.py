@@ -8,6 +8,8 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from dotenv import load_dotenv
 from telegram import WebAppData
 from telegram.ext import Application
+from telegram import WebAppUser
+from telegram.helpers import check_webapp_signature
 
 load_dotenv()
 app = Flask(__name__)
@@ -35,16 +37,43 @@ if not BOT_TOKEN:
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 
 # Обновляем функцию проверки initData
+#def check_init_data(init_data):
+#    try:
+#        if not init_data:
+#            app.logger.error('initData is empty')
+#            return False, None
+#        from telegram import WebAppData
+#        web_app_data = WebAppData(**init_data)
+#        return True, web_app_data
+#    except Exception as e:
+#        app.logger.error(f'Ошибка проверки init_data: {e}')
+#        return False, None
+
 def check_init_data(init_data):
     try:
         if not init_data:
             app.logger.error('initData is empty')
             return False, None
-        from telegram import WebAppData
-        web_app_data = WebAppData(**init_data)
-        return True, web_app_data
+
+        # Проверяем подпись initData
+        is_valid = check_webapp_signature(BOT_TOKEN, init_data)
+        if not is_valid:
+            app.logger.error('initData verification failed')
+            return False, None
+
+        # Парсим initData в словарь
+        data = dict(urllib.parse.parse_qsl(init_data))
+        user_data_json = data.get('user')
+        if not user_data_json:
+            app.logger.error('User data not found in initData')
+            return False, None
+
+        # Преобразуем JSON-строку user_data в словарь
+        user_data = json.loads(user_data_json)
+        web_app_user = WebAppUser(**user_data)
+        return True, web_app_user
     except Exception as e:
-        app.logger.error(f'Ошибка проверки init_data: {e}')
+        app.logger.error(f'Error in check_init_data: {e}')
         return False, None
 
 @app.route('/')
@@ -62,11 +91,10 @@ def process_init_data():
 
         is_valid, web_app_data = check_init_data(init_data)
         if is_valid and web_app_data.user:
-            user = web_app_data.user
-            user_id = user.id
-            username = user.username or ''
-            first_name = user.first_name or ''
-            last_name = user.last_name or ''
+            ser_id = web_app_user.id
+            username = web_app_user.username or ''
+            first_name = web_app_user.first_name or ''
+            last_name = web_app_user.last_name or ''
             name = f"{first_name} {last_name}".strip()
             session['user_id'] = user_id
 

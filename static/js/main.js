@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    const initData = window.Telegram.WebApp.initDataUnsafe;
+    const initData = window.Telegram.WebApp.initData;
     console.log('initData:', initData);
     const urlParams = new URLSearchParams(window.location.search);
     const referrer_id = urlParams.get('ref');
