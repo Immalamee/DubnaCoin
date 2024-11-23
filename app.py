@@ -49,8 +49,11 @@ serializer = URLSafeSerializer(SECRET_KEY)
 #         app.logger.error(f'Ошибка проверки init_data: {e}')
 #         return False, None
 def check_init_data(init_data):
+    import hashlib
+    import hmac
+    from urllib.parse import parse_qsl
+
     app.logger.info(f'Проверка init_data: {init_data}')
-    app.logger.info(f"Длина BOT_TOKEN: {len(BOT_TOKEN)}")
 
     # Парсим init_data без декодирования значений
     data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True, encoding='latin-1'))
@@ -61,10 +64,13 @@ def check_init_data(init_data):
         app.logger.error('Параметр hash отсутствует в init_data')
         return False, None
 
+    # Удаляем параметр 'signature' из данных, если он есть
+    data.pop('signature', None)
+
     # Формируем data_check_string из отсортированных ключей
     data_check_arr = [f"{k}={data[k]}" for k in sorted(data.keys())]
     data_check_string = '\n'.join(data_check_arr)
-    app.logger.info(f'data_check_string: {data_check_string}')
+    app.logger.info(f'data_check_string:\n{data_check_string}')
 
     # Вычисляем секретный ключ
     secret_key = hashlib.sha256(BOT_TOKEN.encode('utf-8')).digest()
@@ -102,6 +108,7 @@ def check_init_data(init_data):
     else:
         app.logger.error('Данные пользователя отсутствуют в init_data')
         return False, None
+
 
 
 
