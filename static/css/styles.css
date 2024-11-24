@@ -43,7 +43,7 @@ h1 {
     width: 100%;
     background-color: #ffffff;
     display: flex;
-    justify-content: left;
+    justify-content: center;
     padding: 10px 0;
     box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1); 
     z-index: 1030; 
@@ -189,11 +189,11 @@ h1 {
 #reportErrorButton {
     transition: background-color 0.3s ease, transform 0.2s ease;
     z-index: 1040;
-    bottom: 250px;
+    bottom: 80px !important;
 }
 
 .report-button {
-    bottom: 280px; 
+    bottom: 80px !important; 
 }
 
 #reportErrorButton:hover {
