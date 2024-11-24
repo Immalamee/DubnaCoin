@@ -78,7 +78,7 @@ h1 {
         transform: rotate(0deg);
     }
     to {
-        transform: rotate(360deg);
+        transform: rotate(10deg);
     }
 }
 
@@ -87,20 +87,20 @@ h1 {
         -webkit-transform: rotate(0deg);
     }
     to {
-        -webkit-transform: rotate(360deg);
+        -webkit-transform: rotate(10deg);
     }
 }
 
 /* Класс для запуска анимации */
 .button-rotate {
-    animation: rotate 2s linear infinite;
-    -webkit-animation: rotate 2s linear infinite; /* Для Safari и других WebKit-браузеров */
+    animation: rotate 1s linear infinite;
+    -webkit-animation: rotate 1s linear infinite; /* Для Safari и других WebKit-браузеров */
 }
 
 /* Дополнительные стили для плавности */
 .rotate-on-click {
-    animation: rotate 2s linear;
-    -webkit-animation: rotate 2s linear;
+    animation: rotate 1s linear;
+    -webkit-animation: rotate 1s linear;
 }
 
 .card {
