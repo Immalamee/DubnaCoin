@@ -64,29 +64,29 @@ def process_init_data():
 
         conn = get_db_connection()
         user_db = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
+        is_new_user = False
         if user_db is None:
             conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
             conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
             conn.commit()
             app.logger.info(f"New user added: {user_id} - {username}")
+            is_new_user = True
 
-            # Обработка реферальной ссылки только при первом входе
-            if referrer_id and referrer_id != str(user_id):
-                app.logger.info(f"Processing referral: referrer_id={referrer_id}, user_id={user_id}")
-                existing_friend = conn.execute('''
-                    SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
-                ''', (referrer_id, user_id)).fetchone()
-                if not existing_friend:
-                    conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
-                    conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
-                    conn.commit()
-                    app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
-                else:
-                    app.logger.info(f"Referral already exists: {referrer_id} and {user_id}")
+        # Обработка реферальной ссылки только при первом входе
+        if is_new_user and referrer_id and referrer_id != str(user_id):
+            app.logger.info(f"Processing referral: referrer_id={referrer_id}, user_id={user_id}")
+            existing_friend = conn.execute('''
+                SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
+            ''', (referrer_id, user_id)).fetchone()
+            if not existing_friend:
+                conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
+                conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
+                conn.commit()
+                app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
             else:
-                app.logger.info("No valid referrer_id provided or self-invitation detected")
+                app.logger.info(f"Referral already exists: {referrer_id} and {user_id}")
         else:
-            app.logger.info(f"Existing user: {user_id} - {username}")
+            app.logger.info("No valid referrer_id provided or self-invitation detected")
 
         coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
         level_row = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
@@ -118,7 +118,8 @@ def process_init_data():
 
 def check_init_data(init_data, bot_token):
     try:
-        parsed_data = dict(parse_qsl(init_data))
+        parsed_data = dict(parse_qsl(init_data, keep_blank_values=True))
+        app.logger.info(f"Parsed init_data: {parsed_data}")
 
         received_hash = parsed_data.pop('hash', None)
         if not received_hash:
@@ -126,14 +127,21 @@ def check_init_data(init_data, bot_token):
 
         data_check_arr = [f"{k}={v}" for k, v in sorted(parsed_data.items(), key=itemgetter(0))]
         data_check_string = '\n'.join(data_check_arr)
+        app.logger.info(f"data_check_string:\n{data_check_string}")
 
-        secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
+        secret_key = hmac.new(
+            key=b'WebAppData',
+            msg=bot_token.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).digest()
 
         computed_hash = hmac.new(
             key=secret_key,
             msg=data_check_string.encode('utf-8'),
             digestmod=hashlib.sha256
         ).hexdigest()
+        app.logger.info(f"Вычисленный хэш: {computed_hash}")
+        app.logger.info(f"Хэш из Telegram: {received_hash}")
 
         if not hmac.compare_digest(computed_hash, received_hash):
             return False, 'Хэш не совпадает.'
