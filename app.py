@@ -47,68 +47,68 @@ def process_init_data():
         app.logger.info(f"Received init_data: {init_data}")
         app.logger.info(f"Received referrer_id: {referrer_id}")
 
+        # Проверяем init_data
         is_valid, result = check_init_data(init_data, BOT_TOKEN)
         if not is_valid:
             app.logger.error(f"Invalid init data: {result}")
             return jsonify({'success': False, 'error': result}), 403
         app.logger.info(f"Результат проверки init_data: {is_valid}")
+
+        # Получаем данные пользователя
         user_data_json = result.get('user')
         if not user_data_json:
             app.logger.error('Данные пользователя отсутствуют в initData.')
             return jsonify({'success': False, 'error': 'Данные пользователя отсутствуют'}), 403
-        if is_valid and web_app_data.user:
-            user = web_app_data.user
-            user_id = user.id
-            username = user.username or ''
-            first_name = user.first_name or ''
-            last_name = user.last_name or ''
-            name = f"{first_name} {last_name}".strip()
 
-            conn = get_db_connection()
-            user_db = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
-            if user_db is None:
-                conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
-                conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
+        user_data = json.loads(user_data_json)
+        user_id = user_data.get('id')
+        username = user_data.get('username', '')
+        first_name = user_data.get('first_name', '')
+        last_name = user_data.get('last_name', '')
+        name = f"{first_name} {last_name}".strip()
+
+        conn = get_db_connection()
+        user_db = conn.execute('SELECT * FROM Users WHERE ID = ?', (user_id,)).fetchone()
+        if user_db is None:
+            conn.execute("INSERT INTO Users (ID, Username, Name) VALUES (?, ?, ?)", (user_id, username, name))
+            conn.execute("INSERT INTO Statistic (User_id) VALUES (?)", (user_id,))
+            conn.commit()
+            app.logger.info(f"New user added: {user_id} - {username}")
+
+        # Обработка реферальной ссылки
+        if referrer_id and referrer_id != str(user_id):
+            existing_friend = conn.execute('''
+                SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
+            ''', (referrer_id, user_id)).fetchone()
+            if not existing_friend:
+                conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
+                conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
                 conn.commit()
-                app.logger.info(f"New user added: {user_id} - {username}")
+                app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
 
-            # Обработка реферальной ссылки
-            if referrer_id and referrer_id != str(user_id):
-                existing_friend = conn.execute('''
-                    SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
-                ''', (referrer_id, user_id)).fetchone()
-                if not existing_friend:
-                    conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
-                    conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
-                    conn.commit()
-                    app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
+        # Получаем актуальные данные пользователя
+        coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
+        level_row = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
+        coins = coins_row['Coins'] if coins_row else 0
+        level = level_row['Level'] if level_row else 1
 
-            # Получаем актуальные данные пользователя
-            coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
-            level_row = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
-            coins = coins_row['Coins'] if coins_row else 0
-            level = level_row['Level'] if level_row else 1
+        current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
+        current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
+        if not current_skin:
+            current_skin = 'default.png'
+        conn.close()
 
-            current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
-            current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
-            if not current_skin:
-                current_skin = 'default.png'
-            conn.close()
+        # Генерируем токен
+        token = serializer.dumps({'user_id': user_id})
 
-            # Генерируем токен
-            token = serializer.dumps({'user_id': user_id})
-
-            return jsonify({
-                'success': True,
-                'coins': coins,
-                'level': level,
-                'current_skin': current_skin,
-                'username': username,
-                'token': token
-            })
-        else:
-            app.logger.error('Invalid init data received')
-            return jsonify({'success': False, 'error': 'Invalid init data'}), 403
+        return jsonify({
+            'success': True,
+            'coins': coins,
+            'level': level,
+            'current_skin': current_skin,
+            'username': username,
+            'token': token
+        })
     except Exception as e:
         app.logger.error(f'Error processing init_data: {e}')
         return jsonify({'success': False, 'error': 'Server error'}), 500
@@ -126,44 +126,45 @@ def process_init_data():
 
 def check_init_data(init_data, bot_token):
     try:
-        # Парсим строку init_data, выполняя URL-декодирование значений
-        data = dict(parse_qsl(init_data, keep_blank_values=True))
+        # Парсим init_data с URL-декодированием значений
+        parsed_data = dict(parse_qsl(init_data))
         
         # Извлекаем хэш из данных
-        received_hash = data.pop('hash', None)
+        received_hash = parsed_data.pop('hash', None)
         if not received_hash:
             return False, 'Параметр hash отсутствует в init_data.'
         
-        # Удаляем параметр 'hash' из данных
-        # Формируем data_check_string из отсортированных по ключу пар 'ключ=значение'
-        data_check_arr = []
-        for key in sorted(data.keys()):
-            value = data[key]
-            data_check_arr.append(f"{key}={value}")
+        # Удаляем 'hash' из данных
+        # Сортируем параметры по ключу
+        data_check_arr = [f"{k}={v}" for k, v in sorted(parsed_data.items(), key=itemgetter(0))]
         data_check_string = '\n'.join(data_check_arr)
         
         # Вычисляем секретный ключ
-        secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
+        secret_key = hmac.new(
+            key=b'WebAppData',
+            msg=bot_token.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).digest()
         
         # Вычисляем хэш
-        computed_hash = hmac.new(secret_key, msg=data_check_string.encode('utf-8'), digestmod=hashlib.sha256).hexdigest()
+        computed_hash = hmac.new(
+            key=secret_key,
+            msg=data_check_string.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).hexdigest()
         
         # Сравниваем вычисленный хэш с хэшем, полученным от Telegram
         if not hmac.compare_digest(computed_hash, received_hash):
             return False, 'Хэш не совпадает.'
         
         # Проверяем актуальность auth_date
-        auth_date = int(data.get('auth_date', '0'))
+        auth_date = int(parsed_data.get('auth_date', '0'))
         current_time = int(time.time())
         if current_time - auth_date > 86400:
             return False, 'auth_date слишком старый.'
-
-        app.logger.info(f"data_check_string:\n{data_check_string}")
-        app.logger.info(f"Вычисленный хэш: {computed_hash}")
-        app.logger.info(f"Хэш из Telegram: {received_hash}")
         
         # Возвращаем успешный результат и данные
-        return True, data
+        return True, parsed_data
     except Exception as e:
         return False, f'Ошибка при проверке initData: {e}'
 
