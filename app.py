@@ -125,40 +125,43 @@ def process_init_data():
 #         return False, None
 
 def check_init_data(init_data, bot_token):
-    # Парсим init_data в словарь, автоматически выполняя URL-декодирование
-    data = dict(parse_qsl(init_data, keep_blank_values=True))
-    
-    # Извлекаем хэш из данных
-    received_hash = data.pop('hash', None)
-    if not received_hash:
-        return False, 'Параметр hash отсутствует в init_data.'
-    
-    # Удаляем 'signature', если есть
-    data.pop('signature', None)
-    
-    # Сортируем параметры и формируем data_check_string
-    sorted_data = sorted(data.items())
-    data_check_arr = [f"{k}={v}" for k, v in sorted_data]
-    data_check_string = '\n'.join(data_check_arr)
-    
-    # Вычисляем секретный ключ
-    secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
-    
-    # Вычисляем хэш
-    computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-    
-    # Сравниваем вычисленный хэш с полученным от Telegram
-    if not hmac.compare_digest(computed_hash, received_hash):
-        return False, 'Хэш не совпадает.'
-    
-    # Проверяем актуальность auth_date
-    auth_date = int(data.get('auth_date', '0'))
-    current_time = int(time.time())
-    if current_time - auth_date > 86400:
-        return False, 'auth_date слишком старый.'
-    
-    # Возвращаем успешный результат и данные
-    return True, data
+    try:
+        # Парсим строку init_data, выполняя URL-декодирование значений
+        data = dict(parse_qsl(init_data, keep_blank_values=True))
+        
+        # Извлекаем хэш из данных
+        received_hash = data.pop('hash', None)
+        if not received_hash:
+            return False, 'Параметр hash отсутствует в init_data.'
+        
+        # Удаляем параметр 'hash' из данных
+        # Формируем data_check_string из отсортированных по ключу пар 'ключ=значение'
+        data_check_arr = []
+        for key in sorted(data.keys()):
+            value = data[key]
+            data_check_arr.append(f"{key}={value}")
+        data_check_string = '\n'.join(data_check_arr)
+        
+        # Вычисляем секретный ключ
+        secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
+        
+        # Вычисляем хэш
+        computed_hash = hmac.new(secret_key, msg=data_check_string.encode('utf-8'), digestmod=hashlib.sha256).hexdigest()
+        
+        # Сравниваем вычисленный хэш с хэшем, полученным от Telegram
+        if not hmac.compare_digest(computed_hash, received_hash):
+            return False, 'Хэш не совпадает.'
+        
+        # Проверяем актуальность auth_date
+        auth_date = int(data.get('auth_date', '0'))
+        current_time = int(time.time())
+        if current_time - auth_date > 86400:
+            return False, 'auth_date слишком старый.'
+        
+        # Возвращаем успешный результат и данные
+        return True, data
+    except Exception as e:
+        return False, f'Ошибка при проверке initData: {e}'
 
 @app.route('/')
 def index():
