@@ -14,9 +14,11 @@ application = Application.builder().token(BOT_TOKEN).build()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     referrer_id = args[0] if args else None
+    print(f"/start вызван с args: {args}, referrer_id: {referrer_id}")
     web_app_url = 'https://dubnacoin.ru/'
     if referrer_id:
         web_app_url += f'?start_param={referrer_id}'
+    print(f"Web App URL: {web_app_url}")
     keyboard = [
         [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
     ]
