@@ -189,6 +189,7 @@ h1 {
 #reportErrorButton {
     transition: background-color 0.3s ease, transform 0.2s ease;
     z-index: 1040;
+    bottom: 250px;
 }
 
 .report-button {
