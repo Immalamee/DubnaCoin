@@ -47,8 +47,15 @@ def process_init_data():
         app.logger.info(f"Received init_data: {init_data}")
         app.logger.info(f"Received referrer_id: {referrer_id}")
 
-        is_valid, web_app_data = check_init_data(init_data)
+        is_valid, result = check_init_data(init_data, BOT_TOKEN)
+        if not is_valid:
+            app.logger.error(f"Invalid init data: {result}")
+            return jsonify({'success': False, 'error': result}), 403
         app.logger.info(f"Результат проверки init_data: {is_valid}")
+        user_data_json = result.get('user')
+        if not user_data_json:
+            app.logger.error('Данные пользователя отсутствуют в initData.')
+            return jsonify({'success': False, 'error': 'Данные пользователя отсутствуют'}), 403
         if is_valid and web_app_data.user:
             user = web_app_data.user
             user_id = user.id
@@ -116,46 +123,42 @@ def process_init_data():
 #     except Exception as e:
 #         app.logger.error(f'Ошибка проверки init_data: {e}')
 #         return False, None
-def check_webapp_signature(token: str, init_data: str):
-    data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True))
-    if 'hash' not in data:
-        return False
-    hash_ = data.pop('hash')
-    # Удаляем параметр 'hash' из данных
-    data_check_string = '\n'.join(f"{k}={v}" for k, v in sorted(data.items()))
-    secret_key = hashlib.sha256(token.encode('utf-8')).digest()
-    hmac_string = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(hmac_string, hash_)
 
-def check_init_data(init_data):
-    try:
-        app.logger.info(f'Проверка init_data: {init_data}')
-        is_valid = check_webapp_signature(BOT_TOKEN, init_data)
-        if not is_valid:
-            app.logger.error('Хэш не совпадает, проверка не пройдена')
-            return False, None
-
-        # Парсим данные после успешной проверки
-        data = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=True))
-        user_data_json = data.get('user')
-        if user_data_json:
-            user_data = json.loads(user_data_json)
-            app.logger.info(f'Данные пользователя: {user_data}')
-            # Создаём объект пользователя
-            class User:
-                def __init__(self, data):
-                    self.id = data.get('id')
-                    self.username = data.get('username')
-                    self.first_name = data.get('first_name')
-                    self.last_name = data.get('last_name')
-            user = User(user_data)
-            return True, user
-        else:
-            app.logger.error('Данные пользователя отсутствуют в init_data')
-            return False, None
-    except Exception as e:
-        app.logger.error(f'Ошибка проверки init_data: {e}')
-        return False, None
+def check_init_data(init_data, bot_token):
+    # Парсим init_data в словарь, автоматически выполняя URL-декодирование
+    data = dict(parse_qsl(init_data, keep_blank_values=True))
+    
+    # Извлекаем хэш из данных
+    received_hash = data.pop('hash', None)
+    if not received_hash:
+        return False, 'Параметр hash отсутствует в init_data.'
+    
+    # Удаляем 'signature', если есть
+    data.pop('signature', None)
+    
+    # Сортируем параметры и формируем data_check_string
+    sorted_data = sorted(data.items())
+    data_check_arr = [f"{k}={v}" for k, v in sorted_data]
+    data_check_string = '\n'.join(data_check_arr)
+    
+    # Вычисляем секретный ключ
+    secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
+    
+    # Вычисляем хэш
+    computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
+    
+    # Сравниваем вычисленный хэш с полученным от Telegram
+    if not hmac.compare_digest(computed_hash, received_hash):
+        return False, 'Хэш не совпадает.'
+    
+    # Проверяем актуальность auth_date
+    auth_date = int(data.get('auth_date', '0'))
+    current_time = int(time.time())
+    if current_time - auth_date > 86400:
+        return False, 'auth_date слишком старый.'
+    
+    # Возвращаем успешный результат и данные
+    return True, data
 
 @app.route('/')
 def index():
