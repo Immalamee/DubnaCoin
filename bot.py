@@ -19,6 +19,7 @@ logging.basicConfig(
     ]
 )
 
+
 application = Application.builder().token(BOT_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
