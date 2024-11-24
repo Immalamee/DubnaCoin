@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -9,16 +10,25 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("Необходимо установить переменную окружения BOT_TOKEN")
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s',
+    handlers=[
+        logging.FileHandler("bot.log"),  
+        logging.StreamHandler()          
+    ]
+)
+
 application = Application.builder().token(BOT_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     referrer_id = args[0] if args else None
-    print(f"/start вызван с args: {args}, referrer_id: {referrer_id}")
+    logging.info(f"/start вызван с args: {args}, referrer_id: {referrer_id}")
     web_app_url = 'https://dubnacoin.ru/'
     if referrer_id:
         web_app_url += f'?start_param={referrer_id}'
-    print(f"Web App URL: {web_app_url}")
+    logging.info(f"Web App URL: {web_app_url}")
     keyboard = [
         [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
     ]
