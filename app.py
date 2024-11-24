@@ -157,6 +157,10 @@ def check_init_data(init_data, bot_token):
         current_time = int(time.time())
         if current_time - auth_date > 86400:
             return False, 'auth_date слишком старый.'
+
+        app.logger.info(f"data_check_string:\n{data_check_string}")
+        app.logger.info(f"Вычисленный хэш: {computed_hash}")
+        app.logger.info(f"Хэш из Telegram: {received_hash}")
         
         # Возвращаем успешный результат и данные
         return True, data
