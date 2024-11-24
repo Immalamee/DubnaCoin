@@ -37,6 +37,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function rotateButton(button) {
+    button.classList.add('button-rotate');
+
+    setTimeout(() => {
+        button.classList.remove('button-rotate');
+    }, 2000);
+}
+
+
 function initializeApp() {
     document.getElementById('reportErrorButton').addEventListener('click', function() {
         const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
@@ -92,6 +101,7 @@ function clickCoin() {
             document.getElementById('coins').innerText = data.coins;
             const coinButton = document.getElementById('coin-button');
             coinButton.classList.add('flash');
+            rotateButton(coinButton);
             setTimeout(() => {
                 coinButton.classList.remove('flash');
             }, 300);

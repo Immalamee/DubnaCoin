@@ -21,6 +21,7 @@ h1 {
 #coin-button {
     transition: transform 0.1s;
 }
+
 body {
     background-color: #f8f9fa;
 }
@@ -70,6 +71,36 @@ h1 {
 } */
 .coin-img:active {
     transform: rotate(20deg) scale(1.05);
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@-webkit-keyframes rotate { /* Для Safari и других WebKit-браузеров */
+    from {
+        -webkit-transform: rotate(0deg);
+    }
+    to {
+        -webkit-transform: rotate(360deg);
+    }
+}
+
+/* Класс для запуска анимации */
+.button-rotate {
+    animation: rotate 2s linear infinite;
+    -webkit-animation: rotate 2s linear infinite; /* Для Safari и других WebKit-браузеров */
+}
+
+/* Дополнительные стили для плавности */
+.rotate-on-click {
+    animation: rotate 2s linear;
+    -webkit-animation: rotate 2s linear;
 }
 
 .card {
