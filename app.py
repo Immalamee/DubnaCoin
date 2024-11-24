@@ -18,7 +18,6 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')
 
-# Настройка логирования
 app.logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 handler.setLevel(logging.INFO)
@@ -35,7 +34,6 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError('BOT_TOKEN is not set')
 
-# Инициализируем сериализатор для токенов
 SECRET_KEY = app.secret_key
 serializer = URLSafeSerializer(SECRET_KEY)
 
@@ -48,14 +46,12 @@ def process_init_data():
         app.logger.info(f"Received init_data: {init_data}")
         app.logger.info(f"Received referrer_id: {referrer_id}")
 
-        # Проверяем init_data
         is_valid, result = check_init_data(init_data, BOT_TOKEN)
         if not is_valid:
             app.logger.error(f"Invalid init data: {result}")
             return jsonify({'success': False, 'error': result}), 403
         app.logger.info(f"Результат проверки init_data: {is_valid}")
 
-        # Получаем данные пользователя
         user_data_json = result.get('user')
         if not user_data_json:
             app.logger.error('Данные пользователя отсутствуют в initData.')
@@ -76,7 +72,6 @@ def process_init_data():
             conn.commit()
             app.logger.info(f"New user added: {user_id} - {username}")
 
-        # Обработка реферальной ссылки
         if referrer_id and referrer_id != str(user_id):
             existing_friend = conn.execute('''
                 SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
@@ -87,7 +82,6 @@ def process_init_data():
                 conn.commit()
                 app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
 
-        # Получаем актуальные данные пользователя
         coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
         level_row = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
         coins = coins_row['Coins'] if coins_row else 0
@@ -99,7 +93,6 @@ def process_init_data():
             current_skin = 'default.png'
         conn.close()
 
-        # Генерируем токен
         token = serializer.dumps({'user_id': user_id})
 
         return jsonify({
@@ -114,57 +107,37 @@ def process_init_data():
         app.logger.error(f'Error processing init_data: {e}')
         return jsonify({'success': False, 'error': 'Server error'}), 500
 
-# Ваша рабочая функция check_init_data
-# def check_init_data(init_data):
-#     try:
-#         app.logger.info(f'Проверка init_data: {init_data}')
-#         web_app_data = WebAppData.from_webapp(init_data=init_data, bot_token=BOT_TOKEN)
-#         app.logger.info('initData verification successful')
-#         return True, web_app_data
-#     except Exception as e:
-#         app.logger.error(f'Ошибка проверки init_data: {e}')
-#         return False, None
-
 def check_init_data(init_data, bot_token):
     try:
-        # Парсим init_data с URL-декодированием значений
         parsed_data = dict(parse_qsl(init_data))
         
-        # Извлекаем хэш из данных
         received_hash = parsed_data.pop('hash', None)
         if not received_hash:
             return False, 'Параметр hash отсутствует в init_data.'
         
-        # Удаляем 'hash' из данных
-        # Сортируем параметры по ключу
         data_check_arr = [f"{k}={v}" for k, v in sorted(parsed_data.items(), key=itemgetter(0))]
         data_check_string = '\n'.join(data_check_arr)
         
-        # Вычисляем секретный ключ
         secret_key = hmac.new(
             key=b'WebAppData',
             msg=bot_token.encode('utf-8'),
             digestmod=hashlib.sha256
         ).digest()
         
-        # Вычисляем хэш
         computed_hash = hmac.new(
             key=secret_key,
             msg=data_check_string.encode('utf-8'),
             digestmod=hashlib.sha256
         ).hexdigest()
         
-        # Сравниваем вычисленный хэш с хэшем, полученным от Telegram
         if not hmac.compare_digest(computed_hash, received_hash):
             return False, 'Хэш не совпадает.'
         
-        # Проверяем актуальность auth_date
         auth_date = int(parsed_data.get('auth_date', '0'))
         current_time = int(time.time())
         if current_time - auth_date > 86400:
             return False, 'auth_date слишком старый.'
         
-        # Возвращаем успешный результат и данные
         return True, parsed_data
     except Exception as e:
         return False, f'Ошибка при проверке initData: {e}'
@@ -172,10 +145,6 @@ def check_init_data(init_data, bot_token):
 @app.route('/')
 def index():
     return render_template('index.html')
-
-
-
-# Обновляем маршруты для использования токена вместо сессий
 
 @app.route('/friends')
 def friends():
@@ -216,10 +185,8 @@ def click():
     user_stat = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
     level = user_stat['Level']
 
-    # Определяем количество монет за клик на основе уровня
     coins_reward = 2 ** (level - 1) if level > 1 else 1
 
-    # Обновляем количество монет и кликов
     conn.execute("UPDATE Statistic SET Coins = Coins + ?, Clicks = Clicks + 1 WHERE User_id = ?", (coins_reward, user_id))
     conn.commit()
     coins = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()['Coins']
@@ -334,7 +301,6 @@ def report_error():
 
     return jsonify({'success': True})
 
-# Функция автокликера
 def autoclicker():
     while True:
         try:
@@ -350,9 +316,8 @@ def autoclicker():
             conn.close()
         except Exception as e:
             app.logger.error(f"Ошибка в автокликере: {e}")
-        time.sleep(10)  # Каждые 10 секунд
+        time.sleep(10)  
 
-# Запуск автокликера в отдельном потоке
 def start_autoclicker():
     thread = threading.Thread(target=autoclicker)
     thread.daemon = True

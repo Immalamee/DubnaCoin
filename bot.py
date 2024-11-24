@@ -9,10 +9,8 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("Необходимо установить переменную окружения BOT_TOKEN")
 
-# Создание экземпляра приложения бота
 application = Application.builder().token(BOT_TOKEN).build()
 
-# Асинхронный обработчик команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     web_app_url = 'https://dubnacoin.ru/'
     keyboard = [
@@ -24,7 +22,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-# Регистрация обработчика команды /start
 application.add_handler(CommandHandler('start', start))
 
 if __name__ == '__main__':
