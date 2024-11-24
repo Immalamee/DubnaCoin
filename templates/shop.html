@@ -13,7 +13,7 @@
         <h1 class="text-center mb-4">🏪 Магазин</h1>
         <p class="lead text-center">Ваши монеты: <span id="coins">{{ coins }}</span></p>
         <div class="row">
-            <!-- Товар 1 -->
+            <!-- Увеличить уровень -->
             <div class="col-md-6 mb-4">
                 <div class="card h-100 shadow-sm rounded-4">
                     <div class="card-body text-center">
@@ -30,78 +30,32 @@
                     </div>
                 </div>
             </div>
-            <!-- Товар 2 -->
+            <!-- Улучшить автокликер -->
             <div class="col-md-6 mb-4">
                 <div class="card h-100 shadow-sm rounded-4">
                     <div class="card-body text-center">
                         <h5 class="card-title">Улучшить автокликер</h5>
-                        <p class="card-text">Стоимость: 2000 монет</p>
+                        <p class="card-text">Стоимость: {{ (autoclicker_level + 1) * 2000 }} монет</p>
                         <button class="btn btn-primary" onclick="buy('upgrade_autoclicker')">
                             <i class="bi bi-cursor"></i> Купить
                         </button>
                     </div>
                 </div>
             </div>
-            <!-- Товар 3 -->
+            <!-- Скины -->
+            {% for cost in [1000, 2000, 3000, 4000, 5000] %}
             <div class="col-md-6 mb-4">
                 <div class="card h-100 shadow-sm rounded-4">
-                    <img src="{{ url_for('static', filename='images/skin_1000.png') }}" class="card-img-top rounded-top-4" alt="Скин 1000">
+                    <img src="{{ url_for('static', filename='images/skin_' + cost|string + '.png') }}" class="card-img-top rounded-top-4" alt="Скин {{ cost }}">
                     <div class="card-body text-center">
-                        <h5 class="card-title">Скин за 1000 монет</h5>
-                        <button class="btn btn-primary" onclick="buy('skin_1000')">
-                            <i class="bi bi-palette"></i> Купить
-                        </button>
-                    </div>
-                </div>
-            </div>
-             <!-- Товар 4 -->
-             <div class="col-md-6 mb-4">
-                <div class="card h-100 shadow-sm rounded-4">
-                    <img src="{{ url_for('static', filename='images/skin_2000.png') }}" class="card-img-top rounded-top-4" alt="Скин 2000">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Скин за 2000 монет</h5>
-                        <button class="btn btn-primary" onclick="buy('skin_2000')">
+                        <h5 class="card-title">Скин за {{ cost }} монет</h5>
+                        <button class="btn btn-primary" onclick="buy('skin_{{ cost }}')">
                             <i class="bi bi-palette-fill"></i> Купить
                         </button>
                     </div>
                 </div>
             </div>
-            <!-- Товар 5 -->
-            <div class="col-md-6 mb-4">
-                <div class="card h-100 shadow-sm rounded-4">
-                    <img src="{{ url_for('static', filename='images/skin_3000.png') }}" class="card-img-top rounded-top-4" alt="Скин 3000">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Скин за 3000 монет</h5>
-                        <button class="btn btn-primary" onclick="buy('skin_3000')">
-                            <i class="bi bi-palette-fill"></i> Купить
-                        </button>
-                    </div>
-                </div>
-            </div>
-             <!-- Товар 6 -->
-             <div class="col-md-6 mb-4">
-                <div class="card h-100 shadow-sm rounded-4">
-                    <img src="{{ url_for('static', filename='images/skin_4000.png') }}" class="card-img-top rounded-top-4" alt="Скин 4000">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Скин за 4000 монет</h5>
-                        <button class="btn btn-primary" onclick="buy('skin_4000')">
-                            <i class="bi bi-palette-fill"></i> Купить
-                        </button>
-                    </div>
-                </div>
-            </div>
-             <!-- Товар 7 -->
-             <div class="col-md-6 mb-4">
-                <div class="card h-100 shadow-sm rounded-4">
-                    <img src="{{ url_for('static', filename='images/skin_5000.png') }}" class="card-img-top rounded-top-4" alt="Скин 5000">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Скин за 5000 монет</h5>
-                        <button class="btn btn-primary" onclick="buy('skin_5000')">
-                            <i class="bi bi-palette-fill"></i> Купить
-                        </button>
-                    </div>
-                </div>
-            </div>
+            {% endfor %}
         </div>
         <div class="text-center">
             <button class="btn btn-secondary" onclick="goBack()">
@@ -110,10 +64,12 @@
         </div>
     </div>
 
-    <button class="btn btn-outline-danger position-fixed bottom-0 start-0 m-3 rounded-circle shadow-lg" id="reportErrorButton" style="width: 60px; height: 60px;">
+    <button class="btn btn-outline-danger position-fixed end-0 m-3 rounded-circle shadow-lg"
+            id="reportErrorButton" style="width: 60px; height: 60px; bottom: 80px;">
         <i class="bi bi-bug-fill" style="font-size: 24px;"></i>
     </button>
 
+    <!-- Модальные окна -->
     <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content rounded-4 shadow">
@@ -150,14 +106,19 @@
       </div>
     </div>
 
+    <!-- Подключения JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        // Инициализируем userToken на клиенте
+        window.userToken = "{{ token }}";
+    </script>
     <script>
         function buy(item) {
             fetch('/buy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ item: item })
+                body: JSON.stringify({ item: item, token: window.userToken })
             })
             .then(response => response.json())
             .then(data => {
@@ -165,13 +126,16 @@
                 if (data.coins !== undefined) {
                     document.getElementById('coins').innerText = data.coins;
                 }
-                location.reload();
+                // Если куплен скин, обновляем изображение на главной странице
+                if (item.startsWith('skin_')) {
+                    const cost = item.split('_')[1];
+                    window.parent.document.getElementById('coin-image').src = `/static/images/skin_${cost}.png`;
+                }
             });
         }
 
-
         function goBack() {
-            window.location.href = '/';
+            window.location.href = `/?token=${encodeURIComponent(window.userToken)}`;
         }
 
         function showModal(title, message) {

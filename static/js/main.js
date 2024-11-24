@@ -1,10 +1,12 @@
 document.addEventListener('DOMContentLoaded', function() {
     const initData = window.Telegram.WebApp.initData || '';
+    const initDataUnsafe = window.Telegram.WebApp.initDataUnsafe || {};
     console.log('DOMContentLoaded event triggered');
     console.log('initData:', initData);
-    console.log('Отправка запроса к /process_init_data');
-    const urlParams = new URLSearchParams(window.location.search);
-    const referrer_id = urlParams.get('ref');
+
+    // Получаем referrer_id из start_param
+    const referrer_id = initDataUnsafe.start_param || null;
+    console.log('referrer_id:', referrer_id);
 
     fetch('/process_init_data', {
         method: 'POST',
@@ -157,7 +159,7 @@ document.addEventListener('click', function(event) {
 function copyReferralLink() {
     const referralInput = document.getElementById('referralLinkInput');
     referralInput.select();
-    referralInput.setSelectionRange(0, 99999); 
+    referralInput.setSelectionRange(0, 99999);
 
     navigator.clipboard.writeText(referralInput.value).then(function() {
         showToast('Ссылка скопирована в буфер обмена!', 'success');

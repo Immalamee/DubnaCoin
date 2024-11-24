@@ -6,12 +6,10 @@ import logging
 import json
 import hashlib
 import hmac
-import urllib.parse
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer, BadSignature
-from telegram import WebAppData
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlparse, parse_qs
 from operator import itemgetter
 
 load_dotenv()
@@ -72,20 +70,30 @@ def process_init_data():
             conn.commit()
             app.logger.info(f"New user added: {user_id} - {username}")
 
-        if referrer_id and referrer_id != str(user_id):
-            existing_friend = conn.execute('''
-                SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
-            ''', (referrer_id, user_id)).fetchone()
-            if not existing_friend:
-                conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
-                conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
-                conn.commit()
-                app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
+            # Обработка реферальной ссылки только при первом входе
+            if referrer_id and referrer_id != str(user_id):
+                app.logger.info(f"Processing referral: referrer_id={referrer_id}, user_id={user_id}")
+                existing_friend = conn.execute('''
+                    SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
+                ''', (referrer_id, user_id)).fetchone()
+                if not existing_friend:
+                    conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
+                    conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
+                    conn.commit()
+                    app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
+                else:
+                    app.logger.info(f"Referral already exists: {referrer_id} and {user_id}")
+            else:
+                app.logger.info("No valid referrer_id provided or self-invitation detected")
+        else:
+            app.logger.info(f"Existing user: {user_id} - {username}")
 
         coins_row = conn.execute("SELECT Coins FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
         level_row = conn.execute("SELECT Level FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
         coins = coins_row['Coins'] if coins_row else 0
         level = level_row['Level'] if level_row else 1
+        level_cost_row = conn.execute("SELECT Level_Cost FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
+        level_cost = level_cost_row['Level_Cost'] if level_cost_row else 1000
 
         current_skin_row = conn.execute("SELECT Current_skin FROM Users WHERE ID = ?", (user_id,)).fetchone()
         current_skin = current_skin_row['Current_skin'] if current_skin_row else 'default.png'
@@ -99,6 +107,7 @@ def process_init_data():
             'success': True,
             'coins': coins,
             'level': level,
+            'level_cost': level_cost,
             'current_skin': current_skin,
             'username': username,
             'token': token
@@ -110,41 +119,38 @@ def process_init_data():
 def check_init_data(init_data, bot_token):
     try:
         parsed_data = dict(parse_qsl(init_data))
-        
+
         received_hash = parsed_data.pop('hash', None)
         if not received_hash:
             return False, 'Параметр hash отсутствует в init_data.'
-        
+
         data_check_arr = [f"{k}={v}" for k, v in sorted(parsed_data.items(), key=itemgetter(0))]
         data_check_string = '\n'.join(data_check_arr)
-        
-        secret_key = hmac.new(
-            key=b'WebAppData',
-            msg=bot_token.encode('utf-8'),
-            digestmod=hashlib.sha256
-        ).digest()
-        
+
+        secret_key = hashlib.sha256(bot_token.encode('utf-8')).digest()
+
         computed_hash = hmac.new(
             key=secret_key,
             msg=data_check_string.encode('utf-8'),
             digestmod=hashlib.sha256
         ).hexdigest()
-        
+
         if not hmac.compare_digest(computed_hash, received_hash):
             return False, 'Хэш не совпадает.'
-        
+
         auth_date = int(parsed_data.get('auth_date', '0'))
         current_time = int(time.time())
         if current_time - auth_date > 86400:
             return False, 'auth_date слишком старый.'
-        
+
         return True, parsed_data
     except Exception as e:
         return False, f'Ошибка при проверке initData: {e}'
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    token = request.args.get('token')
+    return render_template('index.html', token=token)
 
 @app.route('/friends')
 def friends():
@@ -211,42 +217,48 @@ def buy():
     conn = get_db_connection()
     user_stat = conn.execute("SELECT * FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
     coins = user_stat['Coins']
+    level = user_stat['Level']
+    level_cost = user_stat['Level_Cost']
+    autoclicker_level = user_stat['Autoclicker']
 
     if item == 'level_up':
-        level = user_stat['Level']
-        level_cost = user_stat['Level_Cost']
-
         if level >= 10:
             message = 'Вы достигли максимального уровня.'
         elif coins >= level_cost:
-            conn.execute("UPDATE Statistic SET Coins = Coins - ?, Level = Level + 1, Level_Cost = Level_Cost + 1000 WHERE User_id = ?", (level_cost, user_id))
+            new_level = level + 1
+            new_level_cost = level_cost + 1000
+            conn.execute("UPDATE Statistic SET Coins = Coins - ?, Level = ?, Level_Cost = ? WHERE User_id = ?",
+                         (level_cost, new_level, new_level_cost, user_id))
             conn.commit()
-            message = f'Уровень увеличен до {level + 1}!'
+            message = f'Уровень увеличен до {new_level}!'
         else:
             message = 'Недостаточно монет для увеличения уровня.'
 
     elif item == 'upgrade_autoclicker':
-        cost = 2000
+        cost = (autoclicker_level + 1) * 2000
         if coins >= cost:
             conn.execute("UPDATE Statistic SET Coins = Coins - ?, Autoclicker = Autoclicker + 1 WHERE User_id = ?", (cost, user_id))
             conn.commit()
-            message = 'Автокликер улучшен!'
+            message = f'Автокликер улучшен до уровня {autoclicker_level + 1}!'
         else:
             message = 'Недостаточно монет для улучшения автокликера.'
 
     elif item.startswith('skin_'):
         try:
             cost = int(item.split('_')[1])
-            if coins >= cost:
+            skin_filename = f'skin_{cost}.png'  # Формируем имя файла скина
+            skin_path = os.path.join('static', 'images', skin_filename)
+            if not os.path.exists(skin_path):
+                message = 'Такого скина не существует.'
+            elif coins >= cost:
                 conn.execute("UPDATE Statistic SET Coins = Coins - ? WHERE User_id = ?", (cost, user_id))
-                conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", (f'{item}.png', user_id))
+                conn.execute("UPDATE Users SET Current_skin = ? WHERE ID = ?", (skin_filename, user_id))
                 conn.commit()
                 message = f'Скин за {cost} куплен!'
             else:
                 message = 'Недостаточно монет для покупки скина.'
         except ValueError:
             message = 'Некорректный товар.'
-
     else:
         message = 'Неизвестный товар.'
 
@@ -268,13 +280,14 @@ def shop():
         return redirect(url_for('index'))
 
     conn = get_db_connection()
-    user_stat = conn.execute("SELECT Coins, Level, Level_Cost FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
+    user_stat = conn.execute("SELECT Coins, Level, Level_Cost, Autoclicker FROM Statistic WHERE User_id = ?", (user_id,)).fetchone()
     coins = user_stat['Coins']
     level = user_stat['Level']
     level_cost = user_stat['Level_Cost']
+    autoclicker_level = user_stat['Autoclicker']
     conn.close()
 
-    return render_template('shop.html', coins=coins, level=level, level_cost=level_cost, token=token)
+    return render_template('shop.html', coins=coins, level=level, level_cost=level_cost, autoclicker_level=autoclicker_level, token=token)
 
 @app.route('/report_error', methods=['POST'])
 def report_error():
@@ -316,7 +329,7 @@ def autoclicker():
             conn.close()
         except Exception as e:
             app.logger.error(f"Ошибка в автокликере: {e}")
-        time.sleep(10)  
+        time.sleep(10)
 
 def start_autoclicker():
     thread = threading.Thread(target=autoclicker)

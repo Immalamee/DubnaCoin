@@ -34,7 +34,8 @@
         </div>
     </div>
 
-    <button class="btn btn-outline-danger position-fixed bottom-0 start-0 m-3 rounded-circle shadow-lg" id="reportErrorButton" style="width: 60px; height: 60px;">
+    <button class="btn btn-outline-danger position-fixed end-0 m-3 rounded-circle shadow-lg"
+            id="reportErrorButton" style="width: 60px; height: 60px; bottom: 80px;">
         <i class="bi bi-bug-fill" style="font-size: 24px;"></i>
     </button>
 
@@ -74,14 +75,18 @@
       </div>
     </div>
 
+    <!-- Подключения JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        // Инициализируем userToken на клиенте
+        window.userToken = "{{ token }}";
+    </script>
     <script>
         function getReferralLink() {
             const container = document.getElementById('user-container');
             const userId = container.getAttribute('data-user-id');
-            const appUrl = window.location.origin + window.location.pathname;
-            const referralLink = `https://t.me/DubnaCoinBot?start=ref_${userId}`;
+            const referralLink = `https://t.me/DubnaCoinBot?start=${userId}`;
 
             const modalBody = document.getElementById('referralModalBody');
             modalBody.innerHTML = `
@@ -100,31 +105,59 @@
             document.getElementById('copyButton').addEventListener('click', function() {
                 const referralInput = document.getElementById('referralLinkInput');
                 referralInput.select();
-                referralInput.setSelectionRange(0, 99999); 
+                referralInput.setSelectionRange(0, 99999);
 
                 navigator.clipboard.writeText(referralInput.value).then(function() {
-                    alert('Ссылка скопирована в буфер обмена!');
+                    showToast('Ссылка скопирована в буфер обмена!', 'success');
                 }, function(err) {
-                    alert('Ошибка при копировании ссылки: ' + err);
+                    showModal('Ошибка', 'Ошибка при копировании ссылки: ' + err);
                 });
             });
         }
 
         function goBack() {
-            window.location.href = '/';
+            window.location.href = `/?token=${encodeURIComponent(window.userToken)}`;
+        }
+
+        function showToast(message, type) {
+            const toastContainer = document.getElementById('toastContainer');
+            const toastEl = document.createElement('div');
+            toastEl.className = `toast align-items-center text-bg-${type} border-0 rounded-3 shadow-lg m-3`;
+            toastEl.role = 'alert';
+            toastEl.ariaLive = 'assertive';
+            toastEl.ariaAtomic = 'true';
+            toastEl.style.maxWidth = '350px';
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Закрыть"></button>
+                </div>
+            `;
+            document.body.appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show();
+
+            toastEl.addEventListener('hidden.bs.toast', () => {
+                toastEl.remove();
+            });
+        }
+
+        function showModal(title, message) {
+            const modalTitle = document.getElementById('infoModalLabel');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = title;
+            modalBody.textContent = message;
+
+            const infoModal = new bootstrap.Modal(document.getElementById('infoModal'));
+            infoModal.show();
         }
     </script>
 
-    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-        <div id="copyToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body">
-            Ссылка скопирована в буфер обмена!
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Закрыть"></button>
-        </div>
-        </div>
-    </div>
-  
+    <!-- Контейнер для Toast -->
+    <div id="toastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1055;"></div>
+
 </body>
 </html>
