@@ -72,19 +72,29 @@ def process_init_data():
             app.logger.info(f"New user added: {user_id} - {username}")
             is_new_user = True
 
-        # Обработка реферальной ссылки только при первом входе
-        if is_new_user and referrer_id and referrer_id != str(user_id):
-            app.logger.info(f"Processing referral: referrer_id={referrer_id}, user_id={user_id}")
-            existing_friend = conn.execute('''
-                SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
-            ''', (referrer_id, user_id)).fetchone()
-            if not existing_friend:
-                conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id, user_id))
-                conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id,))
-                conn.commit()
-                app.logger.info(f"Referral added: {referrer_id} invited {user_id}")
+        app.logger.info(f"is_new_user: {is_new_user}")
+        app.logger.info(f"user_id: {user_id}, referrer_id: {referrer_id}")
+
+        if is_new_user and referrer_id and int(referrer_id) != user_id:
+            referrer_id_int = int(referrer_id)
+            referrer_exists = conn.execute('SELECT 1 FROM Users WHERE ID = ?', (referrer_id_int,)).fetchone()
+            if referrer_exists:
+                app.logger.info(f"Processing referral: referrer_id={referrer_id_int}, user_id={user_id}")
+                existing_friend = conn.execute('''
+                    SELECT * FROM Friends WHERE User_id = ? AND Friend_id = ?
+                ''', (referrer_id_int, user_id)).fetchone()
+                if not existing_friend:
+                    try:
+                        conn.execute('INSERT INTO Friends (User_id, Friend_id) VALUES (?, ?)', (referrer_id_int, user_id))
+                        conn.execute('UPDATE Statistic SET Coins = Coins + 100 WHERE User_id = ?', (referrer_id_int,))
+                        conn.commit()
+                        app.logger.info(f"Referral added: {referrer_id_int} invited {user_id}")
+                    except Exception as e:
+                        app.logger.error(f"Error inserting into Friends: {e}")
+                else:
+                    app.logger.info(f"Referral already exists: {referrer_id_int} and {user_id}")
             else:
-                app.logger.info(f"Referral already exists: {referrer_id} and {user_id}")
+                app.logger.info(f"Referrer ID {referrer_id_int} does not exist in Users table.")
         else:
             app.logger.info("No valid referrer_id provided or self-invitation detected")
 

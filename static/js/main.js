@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded event triggered');
     console.log('initData:', initData);
 
-    // Получаем referrer_id из start_param
     const referrer_id = initDataUnsafe.start_param || null;
     console.log('referrer_id:', referrer_id);
 
