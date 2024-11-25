@@ -42,11 +42,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(text='Открыть DubnaCoin', web_app=WebAppInfo(url=web_app_url))]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
+    message = await update.message.reply_text(
         'Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.',
         reply_markup=reply_markup
-    logging.info(f"Сообщение отправлено: {message.to_dict()}")
     )
+    logging.info(f"Сообщение отправлено: {message.to_dict()}")
+
 
 application.add_handler(CommandHandler('start', start))
 
