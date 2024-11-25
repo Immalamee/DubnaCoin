@@ -14,11 +14,12 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(message)s',
     handlers=[
-        logging.FileHandler("bot.log"),  
-        logging.StreamHandler()          
+        logging.StreamHandler(),          # Поток для консоли
+        logging.FileHandler("/home/stasyan/myapp/DubnaCoin/bot.log")  # Лог-файл
     ]
 )
 
+logging.info("Проверка записи в лог до запуска бота")
 
 application = Application.builder().token(BOT_TOKEN).build()
 
@@ -26,6 +27,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     referrer_id = args[0] if args else None
     user_id = update.effective_user.id
+    print(f"/start вызван с args: {args}, referrer_id: {referrer_id}")
+    print(f"Web App URL: {web_app_url}")
     logging.info(f"/start вызван с args: {args}, referrer_id: {referrer_id}, user_id: {user_id}")
     if referrer_id:
         cursor.execute('''
