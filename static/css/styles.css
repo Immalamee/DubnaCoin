@@ -30,10 +30,13 @@ h1 {
     font-weight: bold;
 }
 
+#coin-button {
+    transition: transform 0.1s;
+}
+
 #coin-button:active {
     transform: scale(0.95);
 }
-
 .bottom-menu {
     position: fixed;
     bottom: 0;
@@ -66,10 +69,10 @@ h1 {
 /* .coin-img:hover {
     transform: rotate(20deg) scale(1.05);
 } */
-
 .coin-img:active {
     transform: rotate(20deg) scale(1.05);
 }
+
 
 .card {
     border: none;
@@ -199,4 +202,3 @@ h1 {
     background-color: #c82333;
     transform: scale(1.05);
 }
-
