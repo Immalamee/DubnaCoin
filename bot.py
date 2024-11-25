@@ -45,6 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         'Добро пожаловать! Нажмите кнопку ниже, чтобы открыть приложение.',
         reply_markup=reply_markup
+    logging.info(f"Сообщение отправлено: {message.to_dict()}")
     )
 
 application.add_handler(CommandHandler('start', start))
